@@ -86,7 +86,7 @@ endif
 #
 
 # Define project name here
-PROJECT = ch
+PROJECT = ui
 
 # Imported source files and paths
 CHIBIOS = ../../..
@@ -221,9 +221,14 @@ ULIBDIR =
 # List all user libraries here
 ULIBS =
 
-#upload:
-#	dfu-util -d 1EAF:0003 -a 2 -D build/ch.bin
+upload: build
+	echo -e '\r\nreboot\r\n' | picocom -b 115200 /dev/ttyACM0 --noreset; \
+	sleep 0.2; \
+	while true; do \
+		dfu-util -d 1EAF:0003 -a 2 -D build/$(PROJECT).bin  -R && break || sleep 0.5; \
+	done
 
+build: build/ui.bin
 #
 # End of user defines
 ##############################################################################
