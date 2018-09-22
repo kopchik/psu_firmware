@@ -15,20 +15,24 @@
 /*
  * TODO:
 DB9 not connected
-*/
+ */
 
+typedef uint32_t u32;
 typedef uint16_t u16;
 typedef uint8_t u8;
 
 IOBus busA = {GPIOA, 0xFF, 0};
 IOBus busB = {GPIOB, 0xFF, 0};
 
+#define LED_PORT GPIOB
+#define LED_PAD 1
+
 #define CONTROL_PORT GPIOA
 #define COMMAND_DATA 15 // DC / RS
 #define WRITE_STROBE 8  // WR  CHECK
-#define RD 15           // read data, active low CHECK
-#define CS 10           // chip select, active low CHECK
-#define RESET 9         // CHECK
+#define RD 15           // read data, active low
+#define CS 10           // chip select, active low
+#define RESET 9
 
 #define CHIP_ENABLE palClearPad(CONTROL_PORT, CS)
 #define CHIP_DISABLE palSetPad(CONTROL_PORT, CS)
@@ -47,31 +51,32 @@ IOBus busB = {GPIOB, 0xFF, 0};
 
 void delay(uint16_t msec) { chThdSleepMilliseconds(msec); }
 
-void bus_init(void) {
-  palSetBusMode(&busA, PAL_MODE_OUTPUT_PUSHPULL);
-  palSetBusMode(&busB, PAL_MODE_OUTPUT_PUSHPULL);
-
-  palSetPadMode(CONTROL_PORT, COMMAND_DATA, PAL_MODE_OUTPUT_PUSHPULL);
-  palSetPadMode(CONTROL_PORT, WRITE_STROBE, PAL_MODE_OUTPUT_PUSHPULL);
-  palSetPadMode(CONTROL_PORT, RD, PAL_MODE_OUTPUT_PUSHPULL);
-  palSetPadMode(CONTROL_PORT, CS, PAL_MODE_OUTPUT_PUSHPULL);
-  palSetPadMode(CONTROL_PORT, RESET, PAL_MODE_OUTPUT_PUSHPULL);
-
-  palClearPad(CONTROL_PORT, COMMAND_DATA);
-  palClearPad(CONTROL_PORT, WRITE_STROBE);
-  palSetPad(CONTROL_PORT, RD);
-  CHIP_ENABLE;
-}
-
 class Display {
 public:
   uint16_t width = 0;
   uint16_t height = 0;
+
   void reset(void) {
     palClearPad(CONTROL_PORT, RESET);
     delay(10);
     palSetPad(CONTROL_PORT, RESET);
     delay(200);
+  }
+
+  void bus_init(void) {
+    palSetBusMode(&busA, PAL_MODE_OUTPUT_PUSHPULL);
+    palSetBusMode(&busB, PAL_MODE_OUTPUT_PUSHPULL);
+
+    palSetPadMode(CONTROL_PORT, COMMAND_DATA, PAL_MODE_OUTPUT_PUSHPULL);
+    palSetPadMode(CONTROL_PORT, WRITE_STROBE, PAL_MODE_OUTPUT_PUSHPULL);
+    palSetPadMode(CONTROL_PORT, RD, PAL_MODE_OUTPUT_PUSHPULL);
+    palSetPadMode(CONTROL_PORT, CS, PAL_MODE_OUTPUT_PUSHPULL);
+    palSetPadMode(CONTROL_PORT, RESET, PAL_MODE_OUTPUT_PUSHPULL);
+
+    palClearPad(CONTROL_PORT, COMMAND_DATA);
+    palClearPad(CONTROL_PORT, WRITE_STROBE);
+    palSetPad(CONTROL_PORT, RD);
+    CHIP_ENABLE;
   }
 
   void write_bus(uint16_t data) {
@@ -95,6 +100,7 @@ public:
   }
 
   void init(void) {
+    bus_init();
     reset();
 
     writecommand(0x11);
@@ -197,6 +203,7 @@ public:
   }
 
 #define HX8357_MADCTL 0x36
+
   void set_orientation_landscape() {
     writecommand(HX8357_MADCTL);
     writedata(0b00100000);
@@ -233,6 +240,7 @@ public:
       }
     }
   }
+
   void printf(u16 x, u16 y, u16 size, u16 color, const char *fmt, ...) {
     char buf[100];
     va_list args;
@@ -284,6 +292,7 @@ public:
 };
 
 char old_string[100];
+
 class StringWidget {
 private:
   u16 x, y;
@@ -322,6 +331,33 @@ void blink_led(void) {
   //    }
 }
 
+class Pad {
+public:
+  ioportid_t port;
+  u32 pad;
+
+  Pad(ioportid_t _port, u32 _pad) : port(_port), pad(_pad) {
+    palSetPadMode(port, pad, PAL_MODE_OUTPUT_PUSHPULL);
+  }
+
+  void toggle(u32 msec = 0) {
+    palTogglePad(port, pad);
+    delay(msec);
+  }
+
+  void on() { palSetPad(port, pad); }
+
+  void off() { palClearPad(port, pad); }
+  void blink() {
+    while (1) {
+      on();
+      delay(1);
+      off();
+      delay(200);
+    }
+  }
+};
+
 static adcsample_t samples[10];
 static const ADCConversionGroup adcgrpcfg1 = {
     FALSE,              // circular
@@ -338,34 +374,30 @@ static const ADCConversionGroup adcgrpcfg1 = {
     ADC_SQR3_SQ1_N(ADC_CHANNEL_SENSOR)          // SQR3
 };
 
+Pad led = Pad(LED_PORT, LED_PAD);
+
 static THD_WORKING_AREA(waThread1, 256);
+
 static __attribute__((noreturn)) THD_FUNCTION(Thread1, arg) {
   (void)arg;
   chRegSetThreadName("display");
 
-  bus_init();
   Display display = Display();
   display.init();
+
   display.fill(BLACK);
 
   char buf[20];
   StringWidget widget =
       StringWidget(100, 100, buf, sizeof(buf), 4, display, BLACK, WHITE);
-  //  widget.print("TEST");
-  //  delay(1000);
-  //  widget.print("haBA aba");
-  //  delay(1000);
-  //  widget.print("xXx");
   char buf2[10];
   while (1) {
     adcConvert(&ADCD1, &adcgrpcfg1, samples, 1);
     chsnprintf(buf2, sizeof(buf2), "%u", samples[0]);
     widget.print(buf2);
-    blink_led();
-    delay(1000);
-  }
-  //  display.print("test", 100, 100, 4, WHITE);
-  while (1) {
+
+    led.toggle();
+    delay(100);
   }
 }
 
