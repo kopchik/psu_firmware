@@ -321,16 +321,6 @@ public:
   }
 };
 
-void blink_led(void) {
-  //    while (true) {
-  palWriteBus(&busB, 0xFF);
-  chThdSleepMilliseconds(1);
-
-  palWriteBus(&busB, 0x00);
-  chThdSleepMilliseconds(200);
-  //    }
-}
-
 class Pad {
 public:
   ioportid_t port;
