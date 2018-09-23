@@ -49,6 +49,8 @@ IOBus busB = {GPIOB, 0xFF, 0};
 #define WHITE 0xFFFF
 #define BLACK 0x0000
 
+#define max(x,y) ((x>y) ? x:y)
+
 void delay(uint16_t msec) { chThdSleepMilliseconds(msec); }
 
 class Display {
@@ -418,36 +420,60 @@ static const ADCConversionGroup adcgrpcfg1 = {
 
 Pad led = Pad(LED_PORT, LED_PAD);
 
-static THD_WORKING_AREA(waThread1, 256);
+#define MB_SIZE 4
+static msg_t mb_buffer[MB_SIZE];
+static MAILBOX_DECL(input, mb_buffer, MB_SIZE);
 
+
+QEI encoder = QEI(GPIOC, 13, 14);
+static THD_WORKING_AREA(waEncoderThread, 128);
+static __attribute__((noreturn)) THD_FUNCTION(EncoderThread, arg) {
+    (void) arg;
+    chRegSetThreadName("encoder");
+    int old_value=0, value=0;
+    while (1) {
+        value = encoder.scan();
+
+        if (old_value != value) {
+            old_value = value;
+            chMBPostI(&input, value);
+        }
+        delay(1);
+    }
+}
+
+
+char buf[20];
+char printf_buf[10];
+Display display = Display();
+static THD_WORKING_AREA(waThread1, 128);
 static __attribute__((noreturn)) THD_FUNCTION(Thread1, arg) {
   (void)arg;
   chRegSetThreadName("display");
 
-  Display display = Display();
   display.init();
 
   display.fill(BLACK);
 
-  char buf[20];
   StringWidget widget = StringWidget(100, 100, buf, sizeof(buf), 4, display, BLACK, WHITE);
-  char printf_buf[10];
-  QEI encoder = QEI(GPIOC, 13, 14);
+    widget.print("hello!");
 
   while (1) {
+    msg_t msg;
+    if (chMBFetchTimeout(&input, &msg, TIME_INFINITE) == MSG_OK) {
+        chsnprintf(printf_buf, sizeof(printf_buf), "%d", msg);
+        widget.print(printf_buf);
+        led.toggle();
+    }
 //    adcConvert(&ADCD1, &adcgrpcfg1, samples, 1);
 //    chsnprintf(buf2, sizeof(buf2), "%u", samples[0]);
 
-    int cnt = encoder.scan();
-    chsnprintf(printf_buf, sizeof(printf_buf), "%d", cnt);
 
     //    bool pad1_state = palReadPad(GPIOC, 13);
     //    bool pad2_state = palReadPad(GPIOC, 14);
     //    chsnprintf(printf_buf, sizeof(printf_buf), "%d %d", pad1_state, pad2_state);
 
-    widget.print(printf_buf);
-    led.toggle();
-    delay(1);
+//    delay(1);
   }
 }
 
@@ -483,6 +509,7 @@ int main(void) {
 
   shellInit();
 
+  chThdCreateStatic(waEncoderThread, sizeof(waEncoderThread), NORMALPRIO, EncoderThread, NULL);
   chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO, Thread1, NULL);
 
   while (true) {
