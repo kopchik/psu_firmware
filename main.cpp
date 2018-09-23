@@ -404,27 +404,12 @@ public:
     }
 };
 
-static adcsample_t samples[10];
-static const ADCConversionGroup adcgrpcfg1 = {
-    FALSE,              // circular
-    1,                  // num channels
-    NULL,               //  read cb
-    NULL,               // err cb
-    ADC_SQR1_NUM_CH(1), // CR1
-    ADC_CR2_TSVREFE,    // CR2
-    ADC_SMPR1_SMP_VREF(ADC_SAMPLE_239P5) |
-        ADC_SMPR1_SMP_SENSOR(ADC_SAMPLE_239P5), // SMPR1
-    0,                                          // SMPR2
-    0,                                          // SQR1
-    0,                                          // SQR2
-    ADC_SQR3_SQ1_N(ADC_CHANNEL_SENSOR)          // SQR3
-};
 
 Pad led = Pad(LED_PORT, LED_PAD);
 
-#define MB_SIZE 4
-static msg_t mb_buffer[MB_SIZE];
-static MAILBOX_DECL(input, mb_buffer, MB_SIZE);
+#define ENC_MB_SIZE 4
+static msg_t enc_mb_buffer[ENC_MB_SIZE];
+static MAILBOX_DECL(input, enc_mb_buffer, ENC_MB_SIZE);
 
 
 QEI encoder = QEI(GPIOC, 13, 14);
@@ -445,10 +430,50 @@ static __attribute__((noreturn)) THD_FUNCTION(EncoderThread, arg) {
 }
 
 
-char buf[20];
+/*
+ADC
+*/
+#define ADC_MB_SIZE 4
+static msg_t adc_mb_buffer[ADC_MB_SIZE];
+static MAILBOX_DECL(adc_mbox, adc_mb_buffer, ADC_MB_SIZE);
+
+static adcsample_t samples[10];
+static const ADCConversionGroup adcgrpcfg1 = {
+        FALSE,              // circular
+        1,                  // num channels
+        NULL,               //  read cb
+        NULL,               // err cb
+        ADC_SQR1_NUM_CH(1), // CR1
+        ADC_CR2_TSVREFE,    // CR2
+        ADC_SMPR1_SMP_VREF(ADC_SAMPLE_239P5) |
+        ADC_SMPR1_SMP_SENSOR(ADC_SAMPLE_239P5),     // SMPR1
+        0,                                          // SMPR2
+        0,                                          // SQR1
+        0,                                          // SQR2
+        ADC_SQR3_SQ1_N(ADC_CHANNEL_SENSOR)          // SQR3
+};
+static THD_WORKING_AREA(waADCThread, 128);
+static __attribute__((noreturn)) THD_FUNCTION(ADCThread, arg) {
+    (void) arg;
+    chRegSetThreadName("adc");
+
+    adcStart(&ADCD1, NULL);
+
+    while(1) {
+            adcConvert(&ADCD1, &adcgrpcfg1, samples, 1);
+            msg_t value = samples[0];
+            chMBPostI(&adc_mbox, value);
+            delay(100);
+
+    }
+}
+
+
+char widget_buf_enc[20];
+char adc_buf_enc[20];
 char printf_buf[10];
 Display display = Display();
-static THD_WORKING_AREA(waDisplayThread, 128);
+static THD_WORKING_AREA(waDisplayThread, 256);
 static __attribute__((noreturn)) THD_FUNCTION(DisplayThread, arg) {
   (void)arg;
   chRegSetThreadName("display");
@@ -457,28 +482,28 @@ static __attribute__((noreturn)) THD_FUNCTION(DisplayThread, arg) {
 
   display.fill(BLACK);
 
-  StringWidget widget(100, 100, buf, sizeof(buf), 4, display, BLACK, WHITE);
+  StringWidget encoder(100, 100, widget_buf_enc, sizeof(widget_buf_enc), 4, display, BLACK, WHITE);
+  StringWidget adc(100, 130, adc_buf_enc, sizeof(adc_buf_enc), 4, display, BLACK, WHITE);
 
-  widget.print("hello!");
+  encoder.print("hello!");
+  adc.print("adc");
 
   while (1) {
     msg_t msg;
-    if (chMBFetchTimeout(&input, &msg, TIME_INFINITE) == MSG_OK) {
+    if (chMBFetchTimeout(&input, &msg, 1000) == MSG_OK) {
         chsnprintf(printf_buf, sizeof(printf_buf), "%d", msg);
-        widget.print(printf_buf);
+        encoder.print(printf_buf);
         led.toggle();
     }
-//    adcConvert(&ADCD1, &adcgrpcfg1, samples, 1);
-//    chsnprintf(buf2, sizeof(buf2), "%u", samples[0]);
 
-
-    //    bool pad1_state = palReadPad(GPIOC, 13);
-    //    bool pad2_state = palReadPad(GPIOC, 14);
-    //    chsnprintf(printf_buf, sizeof(printf_buf), "%d %d", pad1_state, pad2_state);
-
-//    delay(1);
+    if (chMBFetchI(&adc_mbox, &msg) == MSG_OK) {
+        chsnprintf(printf_buf, sizeof(printf_buf), "%d", msg);
+        adc.print(printf_buf);
+    }
+    delay(1);
   }
 }
+
 
 static void cmd_reboot(BaseSequentialStream *chp, int argc, char *argv[]) {
   (void)argc;
@@ -487,6 +512,7 @@ static void cmd_reboot(BaseSequentialStream *chp, int argc, char *argv[]) {
   chThdSleepMilliseconds(100);
   NVIC_SystemReset();
 }
+
 
 static const ShellCommand commands[] = {{"reboot", cmd_reboot}, {NULL, NULL}};
 
@@ -497,8 +523,6 @@ int main(void) {
   chSysInit();
   sduObjectInit(&SDU1);
   sduStart(&SDU1, &serusbcfg);
-
-  adcStart(&ADCD1, NULL);
 
   /*
    * Activates the USB driver and then the USB bus pull-up on D+.
@@ -512,14 +536,14 @@ int main(void) {
 
   shellInit();
 
+  chThdCreateStatic(waADCThread,     sizeof(waADCThread),     NORMALPRIO, ADCThread,     NULL);
   chThdCreateStatic(waEncoderThread, sizeof(waEncoderThread), NORMALPRIO, EncoderThread, NULL);
   chThdCreateStatic(waDisplayThread, sizeof(waDisplayThread), NORMALPRIO, DisplayThread, NULL);
 
   while (true) {
     if (SDU1.config->usbp->state == USB_ACTIVE) {
-      thread_t *shelltp =
-          chThdCreateFromHeap(NULL, SHELL_WA_SIZE, "shell", NORMALPRIO + 1,
-                              shellThread, (void *)&shell_cfg1);
+      thread_t *shelltp = chThdCreateFromHeap(NULL, SHELL_WA_SIZE, "shell", NORMALPRIO + 1,
+                                              shellThread, (void *)&shell_cfg1);
       chThdWait(shelltp);
     }
     chThdSleepMilliseconds(1000);
