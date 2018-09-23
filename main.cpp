@@ -321,6 +321,7 @@ public:
   }
 };
 
+
 class Pad {
 public:
   ioportid_t port;
@@ -346,6 +347,57 @@ public:
       delay(200);
     }
   }
+};
+
+class QEI {
+public:
+    ioportid_t port;
+    u32 pad1;
+    u32 pad2;
+    u8 state = 0;
+    u16 count = 0;
+    u16 value = 0;
+
+    QEI(ioportid_t _port, u32 _pad1, u32 _pad2)
+    : port(_port), pad1(_pad1), pad2(_pad2) {
+        palSetPadMode(port, pad1, PAL_MODE_INPUT_PULLUP);
+        palSetPadMode(port, pad2, PAL_MODE_INPUT_PULLUP);
+    }
+    int scan() {
+        // idea from
+        // https://www.eevblog.com/forum/projects/quadrature-rotary-encoder/msg1291497/#msg1291497
+
+        bool pad1_state = palReadPad(port, pad1);
+        bool pad2_state = palReadPad(port, pad2);
+
+        state = (state << 2) & 0b1111;
+        if (pad1_state) { state |= 0b01; }
+        if (pad2_state) { state |= 0b10; }
+
+        switch(state) {
+            // Forward
+            case 0b0010:
+            case 0b1011:
+            case 0b1101:
+            case 0b0100:
+                count++;
+                break;
+
+            // Reverse
+            case 0b0001:
+            case 0b0111:
+            case 0b1110:
+            case 0b1000:
+                count--;
+                break;
+        }
+
+    if (count % 4 == 0) {
+        value = count / 4;
+    }
+
+    return value;
+    }
 };
 
 static adcsample_t samples[10];
@@ -378,16 +430,24 @@ static __attribute__((noreturn)) THD_FUNCTION(Thread1, arg) {
   display.fill(BLACK);
 
   char buf[20];
-  StringWidget widget =
-      StringWidget(100, 100, buf, sizeof(buf), 4, display, BLACK, WHITE);
-  char buf2[10];
-  while (1) {
-    adcConvert(&ADCD1, &adcgrpcfg1, samples, 1);
-    chsnprintf(buf2, sizeof(buf2), "%u", samples[0]);
-    widget.print(buf2);
+  StringWidget widget = StringWidget(100, 100, buf, sizeof(buf), 4, display, BLACK, WHITE);
+  char printf_buf[10];
+  QEI encoder = QEI(GPIOC, 13, 14);
 
+  while (1) {
+//    adcConvert(&ADCD1, &adcgrpcfg1, samples, 1);
+//    chsnprintf(buf2, sizeof(buf2), "%u", samples[0]);
+
+    int cnt = encoder.scan();
+    chsnprintf(printf_buf, sizeof(printf_buf), "%d", cnt);
+
+    //    bool pad1_state = palReadPad(GPIOC, 13);
+    //    bool pad2_state = palReadPad(GPIOC, 14);
+    //    chsnprintf(printf_buf, sizeof(printf_buf), "%d %d", pad1_state, pad2_state);
+
+    widget.print(printf_buf);
     led.toggle();
-    delay(100);
+    delay(1);
   }
 }
 
