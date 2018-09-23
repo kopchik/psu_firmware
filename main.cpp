@@ -320,7 +320,7 @@ public:
     display.print(buffer, x, y, fontsize, bgcolor);
     // print new string
     display.print(string, x, y, fontsize, fgcolor);
-    //      // TODO: check for security / buffer overflow problems
+    // TODO: check for security / buffer overflow problems
     strcpy(buffer, string);
   }
 };
@@ -352,6 +352,7 @@ public:
     }
   }
 };
+
 
 class QEI {
 public:
@@ -497,7 +498,13 @@ static __attribute__((noreturn)) THD_FUNCTION(DisplayThread, arg) {
     }
 
     if (chMBFetchI(&adc_mbox, &msg) == MSG_OK) {
-        chsnprintf(printf_buf, sizeof(printf_buf), "%d", msg);
+        u16 raw_val = msg;
+        double adc_res = 3.3 / 4096;
+        double Vcur = raw_val * adc_res;
+        double V25 = 1.3565;
+        double slope = 0.0043;
+        float temp = (V25-Vcur)/slope + 25;
+        chsnprintf(printf_buf, sizeof(printf_buf), "%f", temp);
         adc.print(printf_buf);
     }
     delay(1);
