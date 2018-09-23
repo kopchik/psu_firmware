@@ -314,6 +314,8 @@ public:
         fgcolor(_fgcolor) {}
 
   void print(const char *string) {
+    // TODO: print only changed chars
+
     // erase old string
     display.print(buffer, x, y, fontsize, bgcolor);
     // print new string
@@ -446,8 +448,8 @@ static __attribute__((noreturn)) THD_FUNCTION(EncoderThread, arg) {
 char buf[20];
 char printf_buf[10];
 Display display = Display();
-static THD_WORKING_AREA(waThread1, 128);
-static __attribute__((noreturn)) THD_FUNCTION(Thread1, arg) {
+static THD_WORKING_AREA(waDisplayThread, 128);
+static __attribute__((noreturn)) THD_FUNCTION(DisplayThread, arg) {
   (void)arg;
   chRegSetThreadName("display");
 
@@ -455,8 +457,9 @@ static __attribute__((noreturn)) THD_FUNCTION(Thread1, arg) {
 
   display.fill(BLACK);
 
-  StringWidget widget = StringWidget(100, 100, buf, sizeof(buf), 4, display, BLACK, WHITE);
-    widget.print("hello!");
+  StringWidget widget(100, 100, buf, sizeof(buf), 4, display, BLACK, WHITE);
+
+  widget.print("hello!");
 
   while (1) {
     msg_t msg;
@@ -510,7 +513,7 @@ int main(void) {
   shellInit();
 
   chThdCreateStatic(waEncoderThread, sizeof(waEncoderThread), NORMALPRIO, EncoderThread, NULL);
-  chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO, Thread1, NULL);
+  chThdCreateStatic(waDisplayThread, sizeof(waDisplayThread), NORMALPRIO, DisplayThread, NULL);
 
   while (true) {
     if (SDU1.config->usbp->state == USB_ACTIVE) {
