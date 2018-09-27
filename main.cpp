@@ -301,14 +301,14 @@ private:
   char *buffer;
   size_t buffer_size;
   u8 fontsize;
-  Display display;
+  Display *display;
   uint16_t bgcolor;
   uint16_t fgcolor;
   uint16_t maxlen;
 
 public:
   StringWidget(u16 _x, u16 _y, char *_buffer, size_t _buffer_size, u8 _fontsize,
-               Display _display, uint16_t _bgcolor, uint16_t _fgcolor)
+               Display *_display, uint16_t _bgcolor, uint16_t _fgcolor)
       : x(_x), y(_y), buffer(_buffer), buffer_size(_buffer_size),
         fontsize(_fontsize), display(_display), bgcolor(_bgcolor),
         fgcolor(_fgcolor) {}
@@ -317,9 +317,9 @@ public:
     // TODO: print only changed chars
 
     // erase old string
-    display.print(buffer, x, y, fontsize, bgcolor);
+    display->print(buffer, x, y, fontsize, bgcolor);
     // print new string
-    display.print(string, x, y, fontsize, fgcolor);
+    display->print(string, x, y, fontsize, fgcolor);
     // TODO: check for security / buffer overflow problems
     strcpy(buffer, string);
   }
@@ -472,28 +472,26 @@ static __attribute__((noreturn)) THD_FUNCTION(ADCThread, arg) {
 
 char widget_buf_enc[20];
 char adc_buf_enc[20];
-char printf_buf[10];
-Display display = Display();
+char printf_buf[20];
+Display display;
+StringWidget adc(100, 130, adc_buf_enc, sizeof(adc_buf_enc), 4, &display, BLACK, WHITE);
+StringWidget encoder_widget(100, 100, widget_buf_enc, sizeof(widget_buf_enc), 4, &display, BLACK, WHITE);
+
 static THD_WORKING_AREA(waDisplayThread, 256);
 static __attribute__((noreturn)) THD_FUNCTION(DisplayThread, arg) {
   (void)arg;
   chRegSetThreadName("display");
-
   display.init();
 
   display.fill(BLACK);
-
-  StringWidget encoder(100, 100, widget_buf_enc, sizeof(widget_buf_enc), 4, display, BLACK, WHITE);
-  StringWidget adc(100, 130, adc_buf_enc, sizeof(adc_buf_enc), 4, display, BLACK, WHITE);
-
-  encoder.print("hello!");
+  encoder_widget.print("hello!");
   adc.print("adc");
 
   while (1) {
     msg_t msg;
     if (chMBFetchTimeout(&input, &msg, 1000) == MSG_OK) {
         chsnprintf(printf_buf, sizeof(printf_buf), "%d", msg);
-        encoder.print(printf_buf);
+        encoder_widget.print(printf_buf);
         led.toggle();
     }
 
