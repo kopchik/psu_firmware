@@ -8,7 +8,8 @@ USE_MAPLEMINI_BOOTLOADER ?= 1
 
 # Compiler options here.
 ifeq ($(USE_OPT),)
-  USE_OPT = -O2 -ggdb -fomit-frame-pointer -falign-functions=16 -DUSE_MAPLEMINI_BOOTLOADER=${USE_MAPLEMINI_BOOTLOADER}
+  USE_OPT = -O2 -fomit-frame-pointer -falign-functions=16 -DUSE_MAPLEMINI_BOOTLOADER=${USE_MAPLEMINI_BOOTLOADER}
+#  USE_OPT += -ggdb
 endif
 
 # C specific options here (added to USE_OPT).
@@ -19,6 +20,8 @@ endif
 # C++ specific options here (added to USE_OPT).
 ifeq ($(USE_CPPOPT),)
   USE_CPPOPT = -fno-rtti
+  USE_CPPOPT += -std=c++17
+  USE_CPPOPT += -fno-threadsafe-statics
 endif
 
 # Enable this if you want the linker to remove unused code and data
@@ -43,7 +46,7 @@ endif
 
 # Enable this if you want to see the full log while compiling.
 ifeq ($(USE_VERBOSE_COMPILE),)
-  USE_VERBOSE_COMPILE = no
+  USE_VERBOSE_COMPILE = yes
 endif
 
 # If enabled, this option makes the build process faster by not compiling
@@ -222,14 +225,16 @@ ULIBDIR =
 # List all user libraries here
 ULIBS =
 
-upload: build
+upload: mybuild
 	echo -e '\r\nreboot\r\n' | picocom -b 115200 /dev/ttyACM0 --noreset; \
 	sleep 0.2; \
 	while true; do \
 		dfu-util -d 1EAF:0003 -a 2 -D build/$(PROJECT).bin  -R && break || sleep 0.5; \
 	done
 
-build: build/ui.bin
+mybuild: build/ui.bin
+	arm-none-eabi-size ./build/ui.elf
+
 #
 # End of user defines
 ##############################################################################
