@@ -293,7 +293,6 @@ public:
   }
 };
 
-char old_string[100];
 
 class StringWidget {
 private:
@@ -502,7 +501,7 @@ static __attribute__((noreturn)) THD_FUNCTION(DisplayThread, arg) {
         double V25 = 1.3565;
         double slope = 0.0043;
         float temp = (V25-Vcur)/slope + 25;
-        chsnprintf(printf_buf, sizeof(printf_buf), "%f", temp);
+        chsnprintf(printf_buf, sizeof(printf_buf), "%.1f", temp);
         adc.print(printf_buf);
     }
     delay(1);
