@@ -388,14 +388,16 @@ public:
     u32 pad1;
     u32 pad2;
     u8 state = 0;
-    u16 count = 0;
+    u16 count = 0;  // TODO: overflow?
     u16 value = 0;
+    u16 old_value = 0;
 
     QEI(ioportid_t _port, u32 _pad1, u32 _pad2)
     : port(_port), pad1(_pad1), pad2(_pad2) {
         palSetPadMode(port, pad1, PAL_MODE_INPUT_PULLUP);
         palSetPadMode(port, pad2, PAL_MODE_INPUT_PULLUP);
     }
+
     int scan() {
         // idea from
         // https://www.eevblog.com/forum/projects/quadrature-rotary-encoder/msg1291497/#msg1291497
@@ -431,6 +433,20 @@ public:
 
     return value;
     }
+
+    int scan_relative() {
+        int result = 0;
+        int new_value = scan();
+        if (new_value == old_value) {
+            result = 0;
+        } else if (new_value > old_value) {
+            result = 1;
+        } else {
+            result = -1;
+        }
+        old_value = new_value;
+        return result;
+    }
 };
 
 
@@ -440,18 +456,17 @@ Pad led = Pad(LED_PORT, LED_PAD);
 static msg_t enc_mb_buffer[ENC_MB_SIZE];
 static MAILBOX_DECL(input, enc_mb_buffer, ENC_MB_SIZE);
 
-
+// encoder1: GPIOC 13 14
 QEI encoder = QEI(GPIOC, 13, 14);
 static THD_WORKING_AREA(waEncoderThread, 128);
 static __attribute__((noreturn)) THD_FUNCTION(EncoderThread, arg) {
     (void) arg;
     chRegSetThreadName("encoder");
-    int old_value=0, value=0;
+    int value=0;
     while (1) {
-        value = encoder.scan();
+        value = encoder.scan_relative();
 
-        if (old_value != value) {
-            old_value = value;
+        if (value != 0) {
             chMBPostI(&input, value);
         }
         delay(1);
