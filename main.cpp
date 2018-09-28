@@ -48,7 +48,12 @@ IOBus busB = {GPIOB, 0xFF, 0};
 
 #define WHITE 0xFFFF
 #define BLACK 0x0000
-
+#define RED   0xF800
+#define GREEN 0x07E0
+#define DARKGREEN 0x03E0
+#define BLUE  0x001F
+#define ORANGE 0xFD20
+#define MAROON 0x7800
 #define max(x,y) ((x>y) ? x:y)
 
 void delay(uint16_t msec) { chThdSleepMilliseconds(msec); }
@@ -57,6 +62,8 @@ class Display {
 public:
   uint16_t width = 0;
   uint16_t height = 0;
+  u16 max_x = 0;
+  u16 max_y = 0;
 
   void reset(void) {
     palClearPad(CONTROL_PORT, RESET);
@@ -211,6 +218,8 @@ public:
     writedata(0b00100000);
     width = 480;
     height = 320;
+    max_x = width - 1;
+    max_y = height - 1;
   }
 
   void fill(uint16_t color) {
@@ -241,6 +250,26 @@ public:
         writedata(color);
       }
     }
+  }
+  void hline(u16 x, u16 y, u16 w, u16 color=WHITE) {
+      setXY(x, y, x+w, y);
+      for (int i =0; i < w; i++) {
+          writedata(color);
+      }
+  }
+
+    void vline(u16 x, u16 y, u16 h, u16 color=WHITE) {
+        setXY(x, y, x, y+h);
+        for (int i =0; i < h; i++) {
+            writedata(color);
+        }
+    }
+
+  void border(u16 color=WHITE) {
+      hline(0, 0, max_x, color);
+      hline(0,max_y, max_x, color);
+      vline(0, 0, max_y, color);
+      vline(max_x, 0, max_y, color);
   }
 
   void printf(u16 x, u16 y, u16 size, u16 color, const char *fmt, ...) {
@@ -473,17 +502,20 @@ char widget_buf_enc[20];
 char adc_buf_enc[20];
 char printf_buf[20];
 Display display;
-StringWidget adc(100, 130, adc_buf_enc, sizeof(adc_buf_enc), 4, &display, BLACK, WHITE);
-StringWidget encoder_widget(100, 100, widget_buf_enc, sizeof(widget_buf_enc), 4, &display, BLACK, WHITE);
+StringWidget adc(4, 6, adc_buf_enc, sizeof(adc_buf_enc), 3, &display, BLACK, WHITE);
+StringWidget encoder_widget(4, 42, widget_buf_enc, sizeof(widget_buf_enc), 3, &display, BLACK, WHITE);
 
 static THD_WORKING_AREA(waDisplayThread, 256);
 static __attribute__((noreturn)) THD_FUNCTION(DisplayThread, arg) {
   (void)arg;
   chRegSetThreadName("display");
   display.init();
+  display.border();
+  display.vline(120, 0, display.max_y);
+  display.vline(240, 0, display.max_y);
+  display.vline(360, 0, display.max_y);
 
-  display.fill(BLACK);
-  encoder_widget.print("hello!");
+  encoder_widget.print("XX.XXX");
   adc.print("adc");
 
   while (1) {
