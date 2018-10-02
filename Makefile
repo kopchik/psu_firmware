@@ -21,7 +21,7 @@ endif
 # C++ specific options here (added to USE_OPT).
 ifeq ($(USE_CPPOPT),)
   USE_CPPOPT = -fno-rtti
-  USE_CPPOPT += -std=c++17
+  USE_CPPOPT += -std=c++11
   USE_CPPOPT += -fno-threadsafe-statics
 endif
 

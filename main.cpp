@@ -323,23 +323,22 @@ public:
 };
 
 
+template <int SIZE=10, int FONTSIZE=3>
 class StringWidget {
 private:
   u16 x, y;
-  char *buffer;
-  size_t buffer_size;
-  u8 fontsize;
+  char buffer[SIZE];
+  size_t buffer_size = SIZE;
+  u8 fontsize = FONTSIZE;
   Display *display;
-  uint16_t bgcolor;
-  uint16_t fgcolor;
-  uint16_t maxlen;
+  uint16_t bgcolor = BLACK;
+  uint16_t fgcolor = WHITE;
 
 public:
-  StringWidget(u16 _x, u16 _y, char *_buffer, size_t _buffer_size, u8 _fontsize,
-               Display *_display, uint16_t _bgcolor, uint16_t _fgcolor)
-      : x(_x), y(_y), buffer(_buffer), buffer_size(_buffer_size),
-        fontsize(_fontsize), display(_display), bgcolor(_bgcolor),
-        fgcolor(_fgcolor) {}
+  inline StringWidget& position(u16 _x, u16 _y) { x = _x;y = _y; return *this; }
+  inline StringWidget& disp(Display* _display) { display = _display; return *this; }
+  inline StringWidget& color(u16 fg, u16 bg) { fgcolor = fg; bgcolor = bg; return *this; }
+  inline StringWidget& size(u8 _fontsize) { fontsize = _fontsize; return *this; }
 
   void print(const char *string) {
     // TODO: print only changed chars
@@ -512,13 +511,55 @@ static __attribute__((noreturn)) THD_FUNCTION(ADCThread, arg) {
     }
 }
 
+#define offset(idx, size) ((size * 8 + 4) * idx)
 
-char widget_buf_enc[20];
-char adc_buf_enc[20];
+class Channel {
+public:
+    StringWidget<6, 3> vread;
+    StringWidget<6, 3> iread;
+
+    StringWidget<6, 3> vset;
+    StringWidget<6, 3> iset;
+
+    Channel(Display *display, u16 horiz_offset, u8 size=3) {
+        int vert_offset = 6;
+        vread.position(horiz_offset,vert_offset + offset(0, size))
+                .size(size)
+                .color(GREEN, BLACK)
+                .disp(display);
+
+        iread.position(horiz_offset,vert_offset + offset(1, size))
+                .size(size)
+                .color(RED, BLACK)
+                .disp(display);
+
+        vset.position(horiz_offset,vert_offset + offset(2, size))
+            .size(size)
+            .color(GREEN, BLACK)
+            .disp(display);
+
+        iset.position(horiz_offset, vert_offset + offset(3, size))
+            .color(RED, BLACK)
+            .disp(display);
+    }
+
+    void update () {
+      vread.print("3.341V");
+      iread.print("0.001A");
+      vset.print("3.34V");
+      iset.print("1.00A");
+    }
+};
+
+
+
+
 char printf_buf[20];
 Display display;
-StringWidget adc(4, 6, adc_buf_enc, sizeof(adc_buf_enc), 3, &display, BLACK, WHITE);
-StringWidget encoder_widget(4, 42, widget_buf_enc, sizeof(widget_buf_enc), 3, &display, BLACK, WHITE);
+Channel channel1(&display, 3);
+Channel channel2(&display, 120+3);
+Channel channel3(&display, 240+3);
+Channel channel4(&display, 360+3);
 
 static THD_WORKING_AREA(waDisplayThread, 256);
 static __attribute__((noreturn)) THD_FUNCTION(DisplayThread, arg) {
@@ -530,14 +571,16 @@ static __attribute__((noreturn)) THD_FUNCTION(DisplayThread, arg) {
   display.vline(240, 0, display.max_y);
   display.vline(360, 0, display.max_y);
 
-  encoder_widget.print("XX.XXX");
-  adc.print("adc");
+  channel1.update();
+  channel2.update();
+  channel3.update();
+  channel4.update();
 
   while (1) {
     msg_t msg;
     if (chMBFetchTimeout(&input, &msg, 1000) == MSG_OK) {
-        chsnprintf(printf_buf, sizeof(printf_buf), "%d", msg);
-        encoder_widget.print(printf_buf);
+//        chsnprintf(printf_buf, sizeof(printf_buf), "%d", msg);
+//        encoder_widget.print(printf_buf);
         led.toggle();
     }
 
@@ -549,7 +592,7 @@ static __attribute__((noreturn)) THD_FUNCTION(DisplayThread, arg) {
         double slope = 0.0043;
         float temp = (V25-Vcur)/slope + 25;
         chsnprintf(printf_buf, sizeof(printf_buf), "%.1f", temp);
-        adc.print(printf_buf);
+//        adc.print(printf_buf);
     }
     delay(1);
   }
