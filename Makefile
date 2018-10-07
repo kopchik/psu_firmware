@@ -236,6 +236,9 @@ upload: mybuild
 mybuild: build/ui.bin
 	arm-none-eabi-size ./build/ui.elf
 
+myformat: mybuild
+	clang-format -i -style=Mozilla ./main.cpp
+
 #
 # End of user defines
 ##############################################################################

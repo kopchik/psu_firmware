@@ -633,7 +633,7 @@ Channel channel4(&display, 360 + 3);
 static THD_WORKING_AREA(waDisplayThread, 256);
 static __attribute__((noreturn)) THD_FUNCTION(DisplayThread, arg)
 {
-  (void) arg;
+  (void)arg;
   chRegSetThreadName("display");
   display.init();
 
