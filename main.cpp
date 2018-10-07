@@ -21,8 +21,8 @@ typedef uint32_t u32;
 typedef uint16_t u16;
 typedef uint8_t u8;
 
-IOBus busA = {GPIOA, 0xFF, 0};
-IOBus busB = {GPIOB, 0xFF, 0};
+IOBus busA = { GPIOA, 0xFF, 0 };
+IOBus busB = { GPIOB, 0xFF, 0 };
 
 #define LED_PORT GPIOB
 #define LED_PAD 1
@@ -48,31 +48,38 @@ IOBus busB = {GPIOB, 0xFF, 0};
 
 #define WHITE 0xFFFF
 #define BLACK 0x0000
-#define RED   0xF800
+#define RED 0xF800
 #define GREEN 0x07E0
 #define DARKGREEN 0x03E0
-#define BLUE  0x001F
+#define BLUE 0x001F
 #define ORANGE 0xFD20
 #define MAROON 0x7800
-#define max(x,y) ((x>y) ? x:y)
+#define max(x, y) ((x > y) ? x : y)
 
-void delay(uint16_t msec) { chThdSleepMilliseconds(msec); }
+void
+delay(uint16_t msec)
+{
+  chThdSleepMilliseconds(msec);
+}
 
-class Display {
+class Display
+{
 public:
   uint16_t width = 0;
   uint16_t height = 0;
   u16 max_x = 0;
   u16 max_y = 0;
 
-  void reset(void) {
+  void reset(void)
+  {
     palClearPad(CONTROL_PORT, RESET);
     delay(10);
     palSetPad(CONTROL_PORT, RESET);
     delay(200);
   }
 
-  void bus_init(void) {
+  void bus_init(void)
+  {
     palSetBusMode(&busA, PAL_MODE_OUTPUT_PUSHPULL);
     palSetBusMode(&busB, PAL_MODE_OUTPUT_PUSHPULL);
 
@@ -88,7 +95,8 @@ public:
     CHIP_ENABLE;
   }
 
-  void write_bus(uint16_t data) {
+  void write_bus(uint16_t data)
+  {
     uint8_t byte_low, byte_high;
     byte_low = data & 0xFF;
     byte_high = (data >> 8) & 0xFF;
@@ -98,17 +106,20 @@ public:
     WRITE_STROBE2;
   }
 
-  void writecommand(uint8_t data) {
+  void writecommand(uint8_t data)
+  {
     SEND_COMMAND;
     write_bus(data);
   }
 
-  void writedata(uint16_t data) {
+  void writedata(uint16_t data)
+  {
     SEND_DATA;
     write_bus(data);
   }
 
-  void init(void) {
+  void init(void)
+  {
     bus_init();
     reset();
 
@@ -179,7 +190,8 @@ public:
     fill(BLACK);
   }
 
-  void SetAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
+  void SetAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
+  {
     writecommand(0x2A); // Column addr set
     writedata(x0 >> 8);
     writedata(x0 & 0xFF); // XSTART
@@ -195,7 +207,8 @@ public:
     writecommand(0x2C); // write to RAM
   }
 
-  void setXY(int x1, int y1, int x2, int y2) {
+  void setXY(int x1, int y1, int x2, int y2)
+  {
     writecommand(0x2A);
     writedata(x1 >> 8);
     writedata(x1);
@@ -213,7 +226,8 @@ public:
 
 #define HX8357_MADCTL 0x36
 
-  void set_orientation_landscape() {
+  void set_orientation_landscape()
+  {
     writecommand(HX8357_MADCTL);
     writedata(0b00100000);
     width = 480;
@@ -222,7 +236,8 @@ public:
     max_y = height - 1;
   }
 
-  void fill(uint16_t color) {
+  void fill(uint16_t color)
+  {
     uint32_t num_pixels = width * height;
     SetAddrWindow(0, 0, width - 1, height - 1);
     writedata(color);
@@ -231,8 +246,12 @@ public:
     }
   }
 
-  void draw_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
-                 uint16_t color = WHITE) {
+  void draw_rect(uint16_t x,
+                 uint16_t y,
+                 uint16_t w,
+                 uint16_t h,
+                 uint16_t color = WHITE)
+  {
     uint16_t _width = width;
     uint16_t _height = height;
     // rudimentary clipping (drawChar w/big text requires this)
@@ -251,28 +270,33 @@ public:
       }
     }
   }
-  void hline(u16 x, u16 y, u16 w, u16 color=WHITE) {
-      setXY(x, y, x+w, y);
-      for (int i =0; i < w; i++) {
-          writedata(color);
-      }
-  }
 
-    void vline(u16 x, u16 y, u16 h, u16 color=WHITE) {
-        setXY(x, y, x, y+h);
-        for (int i =0; i < h; i++) {
-            writedata(color);
-        }
+  void hline(u16 x, u16 y, u16 w, u16 color = WHITE)
+  {
+    setXY(x, y, x + w, y);
+    for (int i = 0; i < w; i++) {
+      writedata(color);
     }
-
-  void border(u16 color=WHITE) {
-      hline(0, 0, max_x, color);
-      hline(0,max_y, max_x, color);
-      vline(0, 0, max_y, color);
-      vline(max_x, 0, max_y, color);
   }
 
-  void printf(u16 x, u16 y, u16 size, u16 color, const char *fmt, ...) {
+  void vline(u16 x, u16 y, u16 h, u16 color = WHITE)
+  {
+    setXY(x, y, x, y + h);
+    for (int i = 0; i < h; i++) {
+      writedata(color);
+    }
+  }
+
+  void border(u16 color = WHITE)
+  {
+    hline(0, 0, max_x, color);
+    hline(0, max_y, max_x, color);
+    vline(0, 0, max_y, color);
+    vline(max_x, 0, max_y, color);
+  }
+
+  void printf(u16 x, u16 y, u16 size, u16 color, const char* fmt, ...)
+  {
     char buf[100];
     va_list args;
     va_start(args, fmt);
@@ -282,15 +306,20 @@ public:
     va_end(args);
   }
 
-  void print(const char *str, u16 x, u16 y, u16 size = 4, u16 color = WHITE) {
+  void print(const char* str, u16 x, u16 y, u16 size = 4, u16 color = WHITE)
+  {
     int len = strlen(str);
     for (int pos = 0; pos < len; pos++) {
       draw_char(str[pos], x + 6 * pos * size, y, size, color);
     }
   }
 
-  void draw_char(unsigned char ascii, uint16_t x, uint16_t y, uint16_t size = 4,
-                 uint16_t color = WHITE) {
+  void draw_char(unsigned char ascii,
+                 uint16_t x,
+                 uint16_t y,
+                 uint16_t size = 4,
+                 uint16_t color = WHITE)
+  {
     char orientation = '3';
     SetAddrWindow(x, y, x + size, y + size);
 
@@ -303,18 +332,18 @@ public:
       for (unsigned char f = 0; f < 8; f++) {
         if ((temp >> f) & 0x01) {
           switch (orientation) {
-          case '0':
-            draw_rect(x + f * size, y - i * size, size, size, color);
-            break;
-          case '1':
-            draw_rect(x - i * size, x - f * size, size, size, color);
-            break;
-          case '2':
-            draw_rect(x - f * size, y + i * size, size, size, color);
-            break;
-          case '3':
-          default:
-            draw_rect(x + i * size, y + f * size, size, size, color);
+            case '0':
+              draw_rect(x + f * size, y - i * size, size, size, color);
+              break;
+            case '1':
+              draw_rect(x - i * size, x - f * size, size, size, color);
+              break;
+            case '2':
+              draw_rect(x - f * size, y + i * size, size, size, color);
+              break;
+            case '3':
+            default:
+              draw_rect(x + i * size, y + f * size, size, size, color);
           }
         }
       }
@@ -322,25 +351,47 @@ public:
   }
 };
 
-
-template <int SIZE=10, int FONTSIZE=3>
-class StringWidget {
+template<int SIZE = 10, int FONTSIZE = 3>
+class StringWidget
+{
 private:
   u16 x, y;
   char buffer[SIZE];
   size_t buffer_size = SIZE;
   u8 fontsize = FONTSIZE;
-  Display *display;
+  Display* display;
   uint16_t bgcolor = BLACK;
   uint16_t fgcolor = WHITE;
 
 public:
-  inline StringWidget& position(u16 _x, u16 _y) { x = _x;y = _y; return *this; }
-  inline StringWidget& disp(Display* _display) { display = _display; return *this; }
-  inline StringWidget& color(u16 fg, u16 bg) { fgcolor = fg; bgcolor = bg; return *this; }
-  inline StringWidget& size(u8 _fontsize) { fontsize = _fontsize; return *this; }
+  inline StringWidget& position(u16 _x, u16 _y)
+  {
+    x = _x;
+    y = _y;
+    return *this;
+  }
 
-  void print(const char *string) {
+  inline StringWidget& disp(Display* _display)
+  {
+    display = _display;
+    return *this;
+  }
+
+  inline StringWidget& color(u16 fg, u16 bg)
+  {
+    fgcolor = fg;
+    bgcolor = bg;
+    return *this;
+  }
+
+  inline StringWidget& size(u8 _fontsize)
+  {
+    fontsize = _fontsize;
+    return *this;
+  }
+
+  void print(const char* string)
+  {
     // TODO: print only changed chars
 
     // erase old string
@@ -352,17 +403,21 @@ public:
   }
 };
 
-
-class Pad {
+class Pad
+{
 public:
   ioportid_t port;
   u32 pad;
 
-  Pad(ioportid_t _port, u32 _pad) : port(_port), pad(_pad) {
+  Pad(ioportid_t _port, u32 _pad)
+    : port(_port)
+    , pad(_pad)
+  {
     palSetPadMode(port, pad, PAL_MODE_OUTPUT_PUSHPULL);
   }
 
-  void toggle(u32 msec = 0) {
+  void toggle(u32 msec = 0)
+  {
     palTogglePad(port, pad);
     delay(msec);
   }
@@ -370,7 +425,9 @@ public:
   void on() { palSetPad(port, pad); }
 
   void off() { palClearPad(port, pad); }
-  void blink() {
+
+  void blink()
+  {
     while (1) {
       on();
       delay(1);
@@ -380,74 +437,82 @@ public:
   }
 };
 
-
-class QEI {
+class QEI
+{
 public:
-    ioportid_t port;
-    u32 pad1;
-    u32 pad2;
-    u8 state = 0;
-    u16 count = 0;  // TODO: overflow?
-    u16 value = 0;
-    u16 old_value = 0;
+  ioportid_t port;
+  u32 pad1;
+  u32 pad2;
+  u8 state = 0;
+  u16 count = 0; // TODO: overflow?
+  u16 value = 0;
+  u16 old_value = 0;
 
-    QEI(ioportid_t _port, u32 _pad1, u32 _pad2)
-    : port(_port), pad1(_pad1), pad2(_pad2) {
-        palSetPadMode(port, pad1, PAL_MODE_INPUT_PULLUP);
-        palSetPadMode(port, pad2, PAL_MODE_INPUT_PULLUP);
+  QEI(ioportid_t _port, u32 _pad1, u32 _pad2)
+    : port(_port)
+    , pad1(_pad1)
+    , pad2(_pad2)
+  {
+    palSetPadMode(port, pad1, PAL_MODE_INPUT_PULLUP);
+    palSetPadMode(port, pad2, PAL_MODE_INPUT_PULLUP);
+  }
+
+  int scan()
+  {
+    // idea from
+    // https://www.eevblog.com/forum/projects/quadrature-rotary-encoder/msg1291497/#msg1291497
+
+    bool pad1_state = palReadPad(port, pad1);
+    bool pad2_state = palReadPad(port, pad2);
+
+    state = (state << 2) & 0b1111;
+    if (pad1_state) {
+      state |= 0b01;
+    }
+    if (pad2_state) {
+      state |= 0b10;
     }
 
-    int scan() {
-        // idea from
-        // https://www.eevblog.com/forum/projects/quadrature-rotary-encoder/msg1291497/#msg1291497
+    switch (state) {
+      // Forward
+      case 0b0010:
+      case 0b1011:
+      case 0b1101:
+      case 0b0100:
+        count++;
+        break;
 
-        bool pad1_state = palReadPad(port, pad1);
-        bool pad2_state = palReadPad(port, pad2);
-
-        state = (state << 2) & 0b1111;
-        if (pad1_state) { state |= 0b01; }
-        if (pad2_state) { state |= 0b10; }
-
-        switch(state) {
-            // Forward
-            case 0b0010:
-            case 0b1011:
-            case 0b1101:
-            case 0b0100:
-                count++;
-                break;
-
-            // Reverse
-            case 0b0001:
-            case 0b0111:
-            case 0b1110:
-            case 0b1000:
-                count--;
-                break;
-        }
+        // Reverse
+      case 0b0001:
+      case 0b0111:
+      case 0b1110:
+      case 0b1000:
+        count--;
+        break;
+    }
 
     if (count % 4 == 0) {
-        value = count / 4;
+      value = count / 4;
     }
 
     return value;
-    }
+  }
 
-    int scan_relative() {
-        int result = 0;
-        int new_value = scan();
-        if (new_value == old_value) {
-            result = 0;
-        } else if (new_value > old_value) {
-            result = 1;
-        } else {
-            result = -1;
-        }
-        old_value = new_value;
-        return result;
+  int scan_relative()
+  {
+    int result = 0;
+    int new_value = scan();
+    if (new_value == old_value) {
+      result = 0;
+    } else if (new_value > old_value) {
+      result = 1;
+    } else {
+      result = -1;
     }
+    old_value = new_value;
+    return result;
+  }
 };
-
 
 Pad led = Pad(LED_PORT, LED_PAD);
 
@@ -458,20 +523,20 @@ static MAILBOX_DECL(input, enc_mb_buffer, ENC_MB_SIZE);
 // encoder1: GPIOC 13 14
 QEI encoder = QEI(GPIOC, 13, 14);
 static THD_WORKING_AREA(waEncoderThread, 128);
-static __attribute__((noreturn)) THD_FUNCTION(EncoderThread, arg) {
-    (void) arg;
-    chRegSetThreadName("encoder");
-    int value=0;
-    while (1) {
-        value = encoder.scan_relative();
+static __attribute__((noreturn)) THD_FUNCTION(EncoderThread, arg)
+{
+  (void)arg;
+  chRegSetThreadName("encoder");
+  int value = 0;
+  while (1) {
+    value = encoder.scan_relative();
 
-        if (value != 0) {
-            chMBPostI(&input, value);
-        }
-        delay(1);
+    if (value != 0) {
+      chMBPostI(&input, value);
     }
+    delay(1);
+  }
 }
-
 
 /*
 ADC
@@ -482,91 +547,98 @@ static MAILBOX_DECL(adc_mbox, adc_mb_buffer, ADC_MB_SIZE);
 
 static adcsample_t samples[10];
 static const ADCConversionGroup adcgrpcfg1 = {
-        FALSE,              // circular
-        1,                  // num channels
-        NULL,               //  read cb
-        NULL,               // err cb
-        ADC_SQR1_NUM_CH(1), // CR1
-        ADC_CR2_TSVREFE,    // CR2
-        ADC_SMPR1_SMP_VREF(ADC_SAMPLE_239P5) |
-        ADC_SMPR1_SMP_SENSOR(ADC_SAMPLE_239P5),     // SMPR1
-        0,                                          // SMPR2
-        0,                                          // SQR1
-        0,                                          // SQR2
-        ADC_SQR3_SQ1_N(ADC_CHANNEL_SENSOR)          // SQR3
+  FALSE,              // circular
+  1,                  // num channels
+  NULL,               //  read cb
+  NULL,               // err cb
+  ADC_SQR1_NUM_CH(1), // CR1
+  ADC_CR2_TSVREFE,    // CR2
+  ADC_SMPR1_SMP_VREF(ADC_SAMPLE_239P5) |
+    ADC_SMPR1_SMP_SENSOR(ADC_SAMPLE_239P5), // SMPR1
+  0,                                        // SMPR2
+  0,                                        // SQR1
+  0,                                        // SQR2
+  ADC_SQR3_SQ1_N(ADC_CHANNEL_SENSOR)        // SQR3
 };
 static THD_WORKING_AREA(waADCThread, 128);
-static __attribute__((noreturn)) THD_FUNCTION(ADCThread, arg) {
-    (void) arg;
-    chRegSetThreadName("adc");
+static __attribute__((noreturn)) THD_FUNCTION(ADCThread, arg)
+{
+  (void)arg;
+  chRegSetThreadName("adc");
 
-    adcStart(&ADCD1, NULL);
+  adcStart(&ADCD1, NULL);
 
-    while(1) {
-            adcConvert(&ADCD1, &adcgrpcfg1, samples, 1);
-            msg_t value = samples[0];
-            chMBPostI(&adc_mbox, value);
-            delay(100);
-
-    }
+  while (1) {
+    adcConvert(&ADCD1, &adcgrpcfg1, samples, 1);
+    msg_t value = samples[0];
+    chMBPostI(&adc_mbox, value);
+    delay(100);
+  }
 }
 
 #define offset(idx, size) ((size * 8 + 4) * idx)
 
-class Channel {
+class Channel
+{
 public:
-    StringWidget<6, 3> vread;
-    StringWidget<6, 3> iread;
+  StringWidget<6, 3> vread;
+  StringWidget<6, 3> iread;
 
-    StringWidget<6, 3> vset;
-    StringWidget<6, 3> iset;
+  StringWidget<6, 3> vset;
+  StringWidget<6, 3> iset;
 
-    Channel(Display *display, u16 horiz_offset, u8 size=3) {
-        int vert_offset = 6;
-        vread.position(horiz_offset,vert_offset + offset(0, size))
-                .size(size)
-                .color(GREEN, BLACK)
-                .disp(display);
+  Channel(Display* display, u16 horiz_offset, u8 size = 3)
+  {
+    int vert_offset = 6;
+    int gap = 8;
+    int vert_step = size * 8 + gap;
 
-        iread.position(horiz_offset,vert_offset + offset(1, size))
-                .size(size)
-                .color(RED, BLACK)
-                .disp(display);
+    vread.position(horiz_offset, vert_offset)
+      .size(size)
+      .color(GREEN, BLACK)
+      .disp(display);
 
-        vset.position(horiz_offset,vert_offset + offset(2, size))
-            .size(size)
-            .color(GREEN, BLACK)
-            .disp(display);
+    vert_offset += vert_step;
+    iread.position(horiz_offset, vert_offset)
+      .size(size)
+      .color(RED, BLACK)
+      .disp(display);
 
-        iset.position(horiz_offset, vert_offset + offset(3, size))
-            .color(RED, BLACK)
-            .disp(display);
-    }
+    vert_offset += vert_step;
+    vset.position(horiz_offset, vert_offset)
+      .size(size)
+      .color(GREEN, BLACK)
+      .disp(display);
 
-    void update () {
-      vread.print("3.341V");
-      iread.print("0.001A");
-      vset.print("3.34V");
-      iset.print("1.00A");
-    }
+    vert_offset += vert_step;
+    iset.position(horiz_offset, vert_offset).color(RED, BLACK).disp(display);
+  }
+
+  void update()
+  {
+    vread.print("3.341V");
+    iread.print("0.001A");
+    vset.print("3.34V");
+    iset.print("1.00A");
+  }
 };
-
-
-
 
 char printf_buf[20];
 Display display;
 Channel channel1(&display, 3);
-Channel channel2(&display, 120+3);
-Channel channel3(&display, 240+3);
-Channel channel4(&display, 360+3);
+Channel channel2(&display, 120 + 3);
+Channel channel3(&display, 240 + 3);
+Channel channel4(&display, 360 + 3);
 
 static THD_WORKING_AREA(waDisplayThread, 256);
-static __attribute__((noreturn)) THD_FUNCTION(DisplayThread, arg) {
-  (void)arg;
+static __attribute__((noreturn)) THD_FUNCTION(DisplayThread, arg)
+{
+  (void) arg;
   chRegSetThreadName("display");
   display.init();
+
   display.border();
+
   display.vline(120, 0, display.max_y);
   display.vline(240, 0, display.max_y);
   display.vline(360, 0, display.max_y);
@@ -579,27 +651,30 @@ static __attribute__((noreturn)) THD_FUNCTION(DisplayThread, arg) {
   while (1) {
     msg_t msg;
     if (chMBFetchTimeout(&input, &msg, 1000) == MSG_OK) {
-//        chsnprintf(printf_buf, sizeof(printf_buf), "%d", msg);
-//        encoder_widget.print(printf_buf);
-        led.toggle();
+      //        chsnprintf(printf_buf, sizeof(printf_buf), "%d", msg);
+      //        encoder_widget.print(printf_buf);
+      led.
+
+        toggle();
     }
 
     if (chMBFetchI(&adc_mbox, &msg) == MSG_OK) {
-        u16 raw_val = msg;
-        double adc_res = 3.3 / 4096;
-        double Vcur = raw_val * adc_res;
-        double V25 = 1.3565;
-        double slope = 0.0043;
-        float temp = (V25-Vcur)/slope + 25;
-        chsnprintf(printf_buf, sizeof(printf_buf), "%.1f", temp);
-//        adc.print(printf_buf);
+      u16 raw_val = msg;
+      double adc_res = 3.3 / 4096;
+      double Vcur = raw_val * adc_res;
+      double V25 = 1.3565;
+      double slope = 0.0043;
+      float temp = (V25 - Vcur) / slope + 25;
+      chsnprintf(printf_buf, sizeof(printf_buf), "%.1f", temp);
+      //        adc.print(printf_buf);
     }
     delay(1);
   }
 }
 
-
-static void cmd_reboot(BaseSequentialStream *chp, int argc, char *argv[]) {
+static void
+cmd_reboot(BaseSequentialStream* chp, int argc, char* argv[])
+{
   (void)argc;
   (void)argv;
   chprintf(chp, "Rebooting...\r\n");
@@ -607,12 +682,15 @@ static void cmd_reboot(BaseSequentialStream *chp, int argc, char *argv[]) {
   NVIC_SystemReset();
 }
 
+static const ShellCommand commands[] = { { "reboot", cmd_reboot },
+                                         { NULL, NULL } };
 
-static const ShellCommand commands[] = {{"reboot", cmd_reboot}, {NULL, NULL}};
+static const ShellConfig shell_cfg1 = { (BaseSequentialStream*)&SDU1,
+                                        commands };
 
-static const ShellConfig shell_cfg1 = {(BaseSequentialStream *)&SDU1, commands};
-
-int main(void) {
+int
+main(void)
+{
   halInit();
   chSysInit();
   sduObjectInit(&SDU1);
@@ -630,14 +708,21 @@ int main(void) {
 
   shellInit();
 
-  chThdCreateStatic(waADCThread,     sizeof(waADCThread),     NORMALPRIO, ADCThread,     NULL);
-  chThdCreateStatic(waEncoderThread, sizeof(waEncoderThread), NORMALPRIO, EncoderThread, NULL);
-  chThdCreateStatic(waDisplayThread, sizeof(waDisplayThread), NORMALPRIO, DisplayThread, NULL);
+  chThdCreateStatic(
+    waADCThread, sizeof(waADCThread), NORMALPRIO, ADCThread, NULL);
+  chThdCreateStatic(
+    waEncoderThread, sizeof(waEncoderThread), NORMALPRIO, EncoderThread, NULL);
+  chThdCreateStatic(
+    waDisplayThread, sizeof(waDisplayThread), NORMALPRIO, DisplayThread, NULL);
 
   while (true) {
     if (SDU1.config->usbp->state == USB_ACTIVE) {
-      thread_t *shelltp = chThdCreateFromHeap(NULL, SHELL_WA_SIZE, "shell", NORMALPRIO + 1,
-                                              shellThread, (void *)&shell_cfg1);
+      thread_t* shelltp = chThdCreateFromHeap(NULL,
+                                              SHELL_WA_SIZE,
+                                              "shell",
+                                              NORMALPRIO + 1,
+                                              shellThread,
+                                              (void*)&shell_cfg1);
       chThdWait(shelltp);
     }
     chThdSleepMilliseconds(1000);
