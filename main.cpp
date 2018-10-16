@@ -7,8 +7,10 @@
 #include "chprintf.h"
 #include "shell.h"
 
-#include "simple_font.h"
+
 #include "usbcfg.h"
+
+#include "display/display.h"
 
 #define SHELL_WA_SIZE THD_WORKING_AREA_SIZE(2048)
 
@@ -17,9 +19,9 @@
 DB9 not connected
  */
 
-typedef uint32_t u32;
-typedef uint16_t u16;
-typedef uint8_t u8;
+//typedef uint32_t u32;
+//typedef uint16_t u16;
+//typedef uint8_t u8;
 
 IOBus busA = { GPIOA, 0xFF, 0 };
 IOBus busB = { GPIOB, 0xFF, 0 };
@@ -38,318 +40,82 @@ IOBus busB = { GPIOB, 0xFF, 0 };
 #define CHIP_DISABLE palSetPad(CONTROL_PORT, CS)
 #define WRITE_BEGIN palClearPad(CONTROL_PORT, WRITE_STROBE);
 #define WRITE_END palSetPad(CONTROL_PORT, WRITE_STROBE);
-#define WRITE_STROBE2                                                          \
-  {                                                                            \
-    palClearPad(CONTROL_PORT, WRITE_STROBE);                                   \
-    palSetPad(CONTROL_PORT, WRITE_STROBE);                                     \
-  };
 #define SEND_COMMAND palClearPad(CONTROL_PORT, COMMAND_DATA);
 #define SEND_DATA palSetPad(CONTROL_PORT, COMMAND_DATA);
 
-#define WHITE 0xFFFF
-#define BLACK 0x0000
-#define RED 0xF800
-#define GREEN 0x07E0
-#define DARKGREEN 0x03E0
-#define BLUE 0x001F
-#define ORANGE 0xFD20
-#define MAROON 0x7800
+
 #define max(x, y) ((x > y) ? x : y)
 
-void
-delay(uint16_t msec)
-{
+void delay(uint16_t msec) {
   chThdSleepMilliseconds(msec);
 }
 
-class Display
-{
-public:
-  uint16_t width = 0;
-  uint16_t height = 0;
-  u16 max_x = 0;
-  u16 max_y = 0;
 
-  void reset(void)
-  {
-    palClearPad(CONTROL_PORT, RESET);
-    delay(10);
-    palSetPad(CONTROL_PORT, RESET);
-    delay(200);
-  }
-
-  void bus_init(void)
-  {
-    palSetBusMode(&busA, PAL_MODE_OUTPUT_PUSHPULL);
-    palSetBusMode(&busB, PAL_MODE_OUTPUT_PUSHPULL);
-
-    palSetPadMode(CONTROL_PORT, COMMAND_DATA, PAL_MODE_OUTPUT_PUSHPULL);
-    palSetPadMode(CONTROL_PORT, WRITE_STROBE, PAL_MODE_OUTPUT_PUSHPULL);
-    palSetPadMode(CONTROL_PORT, RD, PAL_MODE_OUTPUT_PUSHPULL);
-    palSetPadMode(CONTROL_PORT, CS, PAL_MODE_OUTPUT_PUSHPULL);
-    palSetPadMode(CONTROL_PORT, RESET, PAL_MODE_OUTPUT_PUSHPULL);
-
-    palClearPad(CONTROL_PORT, COMMAND_DATA);
-    palClearPad(CONTROL_PORT, WRITE_STROBE);
-    palSetPad(CONTROL_PORT, RD);
-    CHIP_ENABLE;
-  }
-
-  void write_bus(uint16_t data)
-  {
-    uint8_t byte_low, byte_high;
-    byte_low = data & 0xFF;
-    byte_high = (data >> 8) & 0xFF;
-
-    palWriteBus(&busA, byte_low);
-    palWriteBus(&busB, byte_high);
-    WRITE_STROBE2;
-  }
-
-  void writecommand(uint8_t data)
-  {
-    SEND_COMMAND;
-    write_bus(data);
-  }
-
-  void writedata(uint16_t data)
-  {
-    SEND_DATA;
-    write_bus(data);
-  }
-
-  void init(void)
-  {
-    bus_init();
-    reset();
-
-    writecommand(0x11);
-    delay(5);
-
-    writecommand(0xD0);
-    writedata(0x07);
-    writedata(0x42);
-    writedata(0x18);
-
-    writecommand(0xD1);
-    writedata(0x00);
-    writedata(0x07);
-    writedata(0x10);
-
-    writecommand(0xD2);
-    writedata(0x01);
-    writedata(0x02);
-
-    writecommand(0xC0);
-    writedata(0x10);
-    writedata(0x3B);
-    writedata(0x00);
-    writedata(0x02);
-    writedata(0x11);
-
-    writecommand(0xC5);
-    writedata(0x08);
-
-    writecommand(0xC8);
-    writedata(0x00);
-    writedata(0x32);
-    writedata(0x36);
-    writedata(0x45);
-    writedata(0x06);
-    writedata(0x16);
-    writedata(0x37);
-    writedata(0x75);
-    writedata(0x77);
-    writedata(0x54);
-    writedata(0x0C);
-    writedata(0x00);
-
-    writecommand(0x36);
-    writedata(0x0a);
-
-    writecommand(0x3A);
-    writedata(0x55);
-
-    writecommand(0x2A);
-    writedata(0x00);
-    writedata(0x00);
-    writedata(0x01);
-    writedata(0x3F);
-
-    writecommand(0x2B);
-    writedata(0x00);
-    writedata(0x00);
-    writedata(0x01);
-    writedata(0xDF);
-
-    //    delay(120);
-    writecommand(0x29);
-
-    //    delay(25);
-    set_orientation_landscape();
-    fill(BLACK);
-  }
-
-  void SetAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
-  {
-    writecommand(0x2A); // Column addr set
-    writedata(x0 >> 8);
-    writedata(x0 & 0xFF); // XSTART
-    writedata(x1 >> 8);
-    writedata(x1 & 0xFF); // XEND
-
-    writecommand(0x2B); // Row addr set
-    writedata(y0 >> 8);
-    writedata(y0); // YSTART
-    writedata(y1 >> 8);
-    writedata(y1); // YEND
-
-    writecommand(0x2C); // write to RAM
-  }
-
-  void setXY(int x1, int y1, int x2, int y2)
-  {
-    writecommand(0x2A);
-    writedata(x1 >> 8);
-    writedata(x1);
-    writedata(x2 >> 8);
-    writedata(x2);
-
-    writecommand(0x2B);
-    writedata(y1 >> 8);
-    writedata(y1);
-    writedata(y2 >> 8);
-    writedata(y2);
-
-    writecommand(0x2C);
-  }
-
-#define HX8357_MADCTL 0x36
-
-  void set_orientation_landscape()
-  {
-    writecommand(HX8357_MADCTL);
-    writedata(0b00100000);
-    width = 480;
-    height = 320;
-    max_x = width - 1;
-    max_y = height - 1;
-  }
-
-  void fill(uint16_t color)
-  {
-    uint32_t num_pixels = width * height;
-    SetAddrWindow(0, 0, width - 1, height - 1);
-    writedata(color);
-    for (uint32_t i = 1; i < num_pixels; i++) {
-      WRITE_STROBE2;
+class MyDisplay: public Display {
+    void reset(void) {
+      palClearPad(CONTROL_PORT, RESET);
+      delay(10);
+      palSetPad(CONTROL_PORT, RESET);
+      delay(200);
     }
-  }
 
-  void draw_rect(uint16_t x,
-                 uint16_t y,
-                 uint16_t w,
-                 uint16_t h,
-                 uint16_t color = WHITE)
-  {
-    uint16_t _width = width;
-    uint16_t _height = height;
-    // rudimentary clipping (drawChar w/big text requires this)
-    if ((x >= _width) || (y >= _height))
-      return;
-    if ((x + w - 1) >= _width)
-      w = _width - x;
-    if ((y + h - 1) >= _height)
-      h = _height - y;
+    void bus_init(void) {
+      palSetBusMode(&busA, PAL_MODE_OUTPUT_PUSHPULL);
+      palSetBusMode(&busB, PAL_MODE_OUTPUT_PUSHPULL);
 
-    SetAddrWindow(x, y, x + w - 1, y + h - 1);
+      palSetPadMode(CONTROL_PORT, COMMAND_DATA, PAL_MODE_OUTPUT_PUSHPULL);
+      palSetPadMode(CONTROL_PORT, WRITE_STROBE, PAL_MODE_OUTPUT_PUSHPULL);
+      palSetPadMode(CONTROL_PORT, RD, PAL_MODE_OUTPUT_PUSHPULL);
+      palSetPadMode(CONTROL_PORT, CS, PAL_MODE_OUTPUT_PUSHPULL);
+      palSetPadMode(CONTROL_PORT, RESET, PAL_MODE_OUTPUT_PUSHPULL);
 
-    for (y = h; y > 0; y--) {
-      for (x = w; x > 0; x--) {
-        writedata(color);
-      }
+      palClearPad(CONTROL_PORT, COMMAND_DATA);
+      palClearPad(CONTROL_PORT, WRITE_STROBE);
+      palSetPad(CONTROL_PORT, RD);
+      CHIP_ENABLE;
     }
-  }
 
-  void hline(u16 x, u16 y, u16 w, u16 color = WHITE)
-  {
-    setXY(x, y, x + w, y);
-    for (int i = 0; i < w; i++) {
-      writedata(color);
+    void write_bus(uint16_t data) {
+      uint8_t byte_low, byte_high;
+      byte_low = data & 0xFF;
+      byte_high = (data >> 8) & 0xFF;
+
+      palWriteBus(&busA, byte_low);
+      palWriteBus(&busB, byte_high);
+      write_strobe();
     }
-  }
 
-  void vline(u16 x, u16 y, u16 h, u16 color = WHITE)
-  {
-    setXY(x, y, x, y + h);
-    for (int i = 0; i < h; i++) {
-      writedata(color);
+    void writecommand(uint8_t data)  {
+      SEND_COMMAND;
+      write_bus(data);
     }
-  }
 
-  void border(u16 color = WHITE)
-  {
-    hline(0, 0, max_x, color);
-    hline(0, max_y, max_x, color);
-    vline(0, 0, max_y, color);
-    vline(max_x, 0, max_y, color);
-  }
-
-  void printf(u16 x, u16 y, u16 size, u16 color, const char* fmt, ...)
-  {
-    char buf[100];
-    va_list args;
-    va_start(args, fmt);
-    //    vsnprintf(buf, sizeof(buf), fmt, args);
-    chsnprintf(buf, sizeof(buf), fmt, args);
-    print(buf, x, y, size, color);
-    va_end(args);
-  }
-
-  void print(const char* str, u16 x, u16 y, u16 size = 4, u16 color = WHITE)
-  {
-    int len = strlen(str);
-    for (int pos = 0; pos < len; pos++) {
-      draw_char(str[pos], x + 6 * pos * size, y, size, color);
+    void writedata(uint16_t data) {
+      SEND_DATA;
+      write_bus(data);
     }
-  }
 
-  void draw_char(unsigned char ascii,
-                 uint16_t x,
-                 uint16_t y,
-                 uint16_t size = 4,
-                 uint16_t color = WHITE)
-  {
-    char orientation = '3';
-    SetAddrWindow(x, y, x + size, y + size);
+    inline void write_strobe() {
+        palClearPad(CONTROL_PORT, WRITE_STROBE);
+        palSetPad(CONTROL_PORT, WRITE_STROBE);
+    }
 
-    if ((ascii < 0x20) || (ascii > 0x7e)) // check for valid ASCII char
-    {
-      ascii = '?'; // char not supported
+    void delay(uint16_t msec) {
+      chThdSleepMilliseconds(msec);
     }
-    for (unsigned char i = 0; i < 8; i++) {
-      unsigned char temp = simpleFont[ascii - 0x20][i];
-      for (unsigned char f = 0; f < 8; f++) {
-        if ((temp >> f) & 0x01) {
-          switch (orientation) {
-            case '0':
-              draw_rect(x + f * size, y - i * size, size, size, color);
-              break;
-            case '1':
-              draw_rect(x - i * size, x - f * size, size, size, color);
-              break;
-            case '2':
-              draw_rect(x - f * size, y + i * size, size, size, color);
-              break;
-            case '3':
-            default:
-              draw_rect(x + i * size, y + f * size, size, size, color);
-          }
-        }
-      }
+
+    void printf(u16 x, u16 y, u16 size, u16 color, const char* fmt, ...) {
+      char buf[100];
+      va_list args;
+      va_start(args, fmt);
+      //    vsnprintf(buf, sizeof(buf), fmt, args);
+      chsnprintf(buf, sizeof(buf), fmt, args);
+      print(buf, x, y, size, color);
+      va_end(args);
     }
-  }
+
 };
+
 
 template<int SIZE = 10, int FONTSIZE = 3>
 class StringWidget
@@ -426,8 +192,7 @@ public:
 
   void off() { palClearPad(port, pad); }
 
-  void blink()
-  {
+  void blink() {
     while (1) {
       on();
       delay(1);
@@ -437,8 +202,8 @@ public:
   }
 };
 
-class QEI
-{
+
+class QEI {
 public:
   ioportid_t port;
   u32 pad1;
@@ -624,7 +389,7 @@ public:
 };
 
 char printf_buf[20];
-Display display;
+MyDisplay display;
 Channel channel1(&display, 3);
 Channel channel2(&display, 120 + 3);
 Channel channel3(&display, 240 + 3);

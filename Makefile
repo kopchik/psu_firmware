@@ -9,7 +9,7 @@ USE_MAPLEMINI_BOOTLOADER ?= 1
 # Compiler options here.
 ifeq ($(USE_OPT),)
   USE_OPT = -O2 -fomit-frame-pointer -falign-functions=16 -DUSE_MAPLEMINI_BOOTLOADER=${USE_MAPLEMINI_BOOTLOADER}
-#  USE_OPT += -specs=nosys.specs
+  USE_OPT += -specs=nosys.specs
 #  USE_OPT += -ggdb
 endif
 
@@ -129,7 +129,7 @@ CSRC = $(ALLCSRC) \
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
-CPPSRC = $(ALLCPPSRC) main.cpp
+CPPSRC = $(ALLCPPSRC) display/display.cpp main.cpp
 
 # C sources to be compiled in ARM mode regardless of the global setting.
 # NOTE: Mixing ARM and THUMB mode enables the -mthumb-interwork compiler
