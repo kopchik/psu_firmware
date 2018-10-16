@@ -12,6 +12,10 @@
 
 #include "display/display.h"
 
+#include "config.h"
+#include "macros.h"
+
+
 #define SHELL_WA_SIZE THD_WORKING_AREA_SIZE(2048)
 
 /*
@@ -19,22 +23,9 @@
 DB9 not connected
  */
 
-//typedef uint32_t u32;
-//typedef uint16_t u16;
-//typedef uint8_t u8;
 
 IOBus busA = { GPIOA, 0xFF, 0 };
 IOBus busB = { GPIOB, 0xFF, 0 };
-
-#define LED_PORT GPIOB
-#define LED_PAD 1
-
-#define CONTROL_PORT GPIOA
-#define COMMAND_DATA 15 // DC / RS
-#define WRITE_STROBE 8  // WR  CHECK
-#define RD 15           // read data, active low
-#define CS 10           // chip select, active low
-#define RESET 9
 
 #define CHIP_ENABLE palClearPad(CONTROL_PORT, CS)
 #define CHIP_DISABLE palSetPad(CONTROL_PORT, CS)
@@ -42,9 +33,6 @@ IOBus busB = { GPIOB, 0xFF, 0 };
 #define WRITE_END palSetPad(CONTROL_PORT, WRITE_STROBE);
 #define SEND_COMMAND palClearPad(CONTROL_PORT, COMMAND_DATA);
 #define SEND_DATA palSetPad(CONTROL_PORT, COMMAND_DATA);
-
-
-#define max(x, y) ((x > y) ? x : y)
 
 void delay(uint16_t msec) {
   chThdSleepMilliseconds(msec);
@@ -281,17 +269,20 @@ public:
 
 Pad led = Pad(LED_PORT, LED_PAD);
 
-#define ENC_MB_SIZE 4
-static msg_t enc_mb_buffer[ENC_MB_SIZE];
-static MAILBOX_DECL(input, enc_mb_buffer, ENC_MB_SIZE);
+#define STATIC_MAILBOX(name, len)  \
+  static msg_t  name ## _buffer [len];  \
+  static MAILBOX_DECL(name, name ## _buffer, len);
+
+STATIC_MAILBOX(input, INPUT_QUEUE_SIZE);
+STATIC_MAILBOX(readback, READBACK_QUEUE_SIZE);
+
 
 // encoder1: GPIOC 13 14
 QEI encoder = QEI(GPIOC, 13, 14);
-static THD_WORKING_AREA(waEncoderThread, 128);
-static __attribute__((noreturn)) THD_FUNCTION(EncoderThread, arg)
-{
-  (void)arg;
-  chRegSetThreadName("encoder");
+static THD_WORKING_AREA(waInput, 128);
+static __attribute__((noreturn)) THD_FUNCTION(Input, arg) {
+  (void) arg;
+  chRegSetThreadName("input");
   int value = 0;
   while (1) {
     value = encoder.scan_relative();
@@ -306,9 +297,7 @@ static __attribute__((noreturn)) THD_FUNCTION(EncoderThread, arg)
 /*
 ADC
 */
-#define ADC_MB_SIZE 4
-static msg_t adc_mb_buffer[ADC_MB_SIZE];
-static MAILBOX_DECL(adc_mbox, adc_mb_buffer, ADC_MB_SIZE);
+STATIC_MAILBOX(readback_mbox, 4);
 
 static adcsample_t samples[10];
 static const ADCConversionGroup adcgrpcfg1 = {
@@ -325,18 +314,18 @@ static const ADCConversionGroup adcgrpcfg1 = {
   0,                                        // SQR2
   ADC_SQR3_SQ1_N(ADC_CHANNEL_SENSOR)        // SQR3
 };
-static THD_WORKING_AREA(waADCThread, 128);
-static __attribute__((noreturn)) THD_FUNCTION(ADCThread, arg)
-{
-  (void)arg;
-  chRegSetThreadName("adc");
+
+static THD_WORKING_AREA(waReadbackThread, 128);
+static __attribute__((noreturn)) THD_FUNCTION(ReadbackThread, arg) {
+  (void) arg;
+  chRegSetThreadName("readback");
 
   adcStart(&ADCD1, NULL);
 
   while (1) {
     adcConvert(&ADCD1, &adcgrpcfg1, samples, 1);
     msg_t value = samples[0];
-    chMBPostI(&adc_mbox, value);
+    chMBPostI(&readback_mbox, value);
     delay(100);
   }
 }
@@ -423,7 +412,7 @@ static __attribute__((noreturn)) THD_FUNCTION(DisplayThread, arg)
         toggle();
     }
 
-    if (chMBFetchI(&adc_mbox, &msg) == MSG_OK) {
+    if (chMBFetchI(&readback_mbox, &msg) == MSG_OK) {
       u16 raw_val = msg;
       double adc_res = 3.3 / 4096;
       double Vcur = raw_val * adc_res;
@@ -473,12 +462,9 @@ main(void)
 
   shellInit();
 
-  chThdCreateStatic(
-    waADCThread, sizeof(waADCThread), NORMALPRIO, ADCThread, NULL);
-  chThdCreateStatic(
-    waEncoderThread, sizeof(waEncoderThread), NORMALPRIO, EncoderThread, NULL);
-  chThdCreateStatic(
-    waDisplayThread, sizeof(waDisplayThread), NORMALPRIO, DisplayThread, NULL);
+  chThdCreateStatic(waReadbackThread, sizeof(waReadbackThread), NORMALPRIO, ReadbackThread, NULL);
+  chThdCreateStatic(waInput, sizeof(waInput), NORMALPRIO, Input, NULL);
+  chThdCreateStatic(waDisplayThread, sizeof(waDisplayThread), NORMALPRIO, DisplayThread, NULL);
 
   while (true) {
     if (SDU1.config->usbp->state == USB_ACTIVE) {
