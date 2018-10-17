@@ -3,27 +3,15 @@
 
 #include "ch.h"
 #include "hal.h"
-
 #include "chprintf.h"
 #include "shell.h"
-
 
 #include "usbcfg.h"
 
 #include "display/display.h"
-
 #include "config.h"
 #include "macros.h"
 
-
-/*
- * TODO:
-DB9 not connected
- */
-
-
-IOBus bus_lower_half = { GPIOA, 0xFF, 0 };
-IOBus bus_upper_half = { GPIOB, 0xFF, 0 };
 
 #define SEND_COMMAND palClearPad(CONTROL_PORT, COMMAND_DATA);
 #define SEND_DATA palSetPad(CONTROL_PORT, COMMAND_DATA);
@@ -34,6 +22,11 @@ void delay(uint16_t msec) {
 
 
 class MyDisplay: public Display {
+private:
+    IOBus bus_lower_half = { GPIOA, 0xFF, 0 };
+    IOBus bus_upper_half = { GPIOB, 0xFF, 0 };
+
+public:
     void reset(void) {
       palClearPad(CONTROL_PORT, RESET_PAD);
       delay(10);
@@ -153,6 +146,7 @@ public:
   }
 };
 
+
 class Pad {
 public:
   ioportid_t port;
@@ -182,8 +176,6 @@ public:
     }
   }
 };
-
-
 
 Pad led = Pad(LED_PORT, LED_PAD);
 
@@ -320,9 +312,7 @@ static __attribute__((noreturn)) THD_FUNCTION(DisplayThread, arg)
   }
 }
 
-static void
-cmd_reboot(BaseSequentialStream* chp, int argc, char* argv[])
-{
+static void cmd_reboot(BaseSequentialStream* chp, int argc, char* argv[]) {
   (void)argc;
   (void)argv;
   chprintf(chp, "Rebooting...\r\n");
@@ -336,9 +326,8 @@ static const ShellCommand commands[] = { { "reboot", cmd_reboot },
 static const ShellConfig shell_cfg1 = { (BaseSequentialStream*)&SDU1,
                                         commands };
 
-int
-main(void)
-{
+
+int main(void) {
   halInit();
   chSysInit();
   sduObjectInit(&SDU1);
