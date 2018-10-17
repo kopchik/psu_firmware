@@ -22,8 +22,8 @@ DB9 not connected
  */
 
 
-IOBus busA = { GPIOA, 0xFF, 0 };
-IOBus busB = { GPIOB, 0xFF, 0 };
+IOBus bus_lower_half = { GPIOA, 0xFF, 0 };
+IOBus bus_upper_half = { GPIOB, 0xFF, 0 };
 
 #define SEND_COMMAND palClearPad(CONTROL_PORT, COMMAND_DATA);
 #define SEND_DATA palSetPad(CONTROL_PORT, COMMAND_DATA);
@@ -46,8 +46,8 @@ class MyDisplay: public Display {
     }
 
     void bus_init() {
-      palSetBusMode(&busA, PAL_MODE_OUTPUT_PUSHPULL);
-      palSetBusMode(&busB, PAL_MODE_OUTPUT_PUSHPULL);
+      palSetBusMode(&bus_lower_half, PAL_MODE_OUTPUT_PUSHPULL);
+      palSetBusMode(&bus_upper_half, PAL_MODE_OUTPUT_PUSHPULL);
 
       palSetPadMode(CONTROL_PORT, COMMAND_DATA, PAL_MODE_OUTPUT_PUSHPULL);
       palSetPadMode(CONTROL_PORT, WRITE_PIN, PAL_MODE_OUTPUT_PUSHPULL);
@@ -65,8 +65,8 @@ class MyDisplay: public Display {
       byte_low = data & 0xFF;
       byte_high = (data >> 8) & 0xFF;
 
-      palWriteBus(&busA, byte_low);
-      palWriteBus(&busB, byte_high);
+      palWriteBus(&bus_lower_half, byte_low);
+      palWriteBus(&bus_upper_half, byte_high);
       write_strobe();
     }
 
