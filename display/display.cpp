@@ -152,7 +152,7 @@ void Display::draw_rect(uint16_t x,
 }
 
 
-void Display::hline(u16 x, u16 y, u16 w, u16 color) {
+void Display::hline(uint16_t x, uint16_t y, uint16_t w, uint16_t color) {
     setXY(x, y, x + w, y);
     for (int i = 0; i < w; i++) {
         writedata(color);
@@ -160,7 +160,7 @@ void Display::hline(u16 x, u16 y, u16 w, u16 color) {
 }
 
 
-void Display::vline(u16 x, u16 y, u16 h, u16 color) {
+void Display::vline(uint16_t x, uint16_t y, uint16_t h, uint16_t color) {
     setXY(x, y, x, y + h);
     for (int i = 0; i < h; i++) {
         writedata(color);
@@ -168,7 +168,7 @@ void Display::vline(u16 x, u16 y, u16 h, u16 color) {
 }
 
 
-void Display::border(u16 color) {
+void Display::border(uint16_t color) {
     hline(0, 0, max_x, color);
     hline(0, max_y, max_x, color);
     vline(0, 0, max_y, color);
@@ -176,7 +176,7 @@ void Display::border(u16 color) {
 }
 
 
-void Display::print(const char* str, u16 x, u16 y, u16 size, u16 color) {
+void Display::print(const char* str, uint16_t x, uint16_t y, uint16_t size, uint16_t color) {
     int len = strlen(str);
     for (int pos = 0; pos < len; pos++) {
         draw_char(str[pos], x + 6 * pos * size, y, size, color);
@@ -218,4 +218,3 @@ void Display::draw_char(unsigned char ascii,
         }
     }
 }
-

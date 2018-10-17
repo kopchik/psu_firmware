@@ -1,3 +1,6 @@
+#NPROCS:=8
+
+
 ##############################################################################
 # Build global options
 # NOTE: Can be overridden externally.

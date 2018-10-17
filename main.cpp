@@ -16,8 +16,6 @@
 #include "macros.h"
 
 
-#define SHELL_WA_SIZE THD_WORKING_AREA_SIZE(2048)
-
 /*
  * TODO:
 DB9 not connected
@@ -29,8 +27,6 @@ IOBus busB = { GPIOB, 0xFF, 0 };
 
 #define CHIP_ENABLE palClearPad(CONTROL_PORT, CS)
 #define CHIP_DISABLE palSetPad(CONTROL_PORT, CS)
-#define WRITE_BEGIN palClearPad(CONTROL_PORT, WRITE_STROBE);
-#define WRITE_END palSetPad(CONTROL_PORT, WRITE_STROBE);
 #define SEND_COMMAND palClearPad(CONTROL_PORT, COMMAND_DATA);
 #define SEND_DATA palSetPad(CONTROL_PORT, COMMAND_DATA);
 
@@ -41,9 +37,9 @@ void delay(uint16_t msec) {
 
 class MyDisplay: public Display {
     void reset(void) {
-      palClearPad(CONTROL_PORT, RESET);
+      palClearPad(CONTROL_PORT, RESET_PAD);
       delay(10);
-      palSetPad(CONTROL_PORT, RESET);
+      palSetPad(CONTROL_PORT, RESET_PAD);
       delay(200);
     }
 
@@ -52,14 +48,13 @@ class MyDisplay: public Display {
       palSetBusMode(&busB, PAL_MODE_OUTPUT_PUSHPULL);
 
       palSetPadMode(CONTROL_PORT, COMMAND_DATA, PAL_MODE_OUTPUT_PUSHPULL);
-      palSetPadMode(CONTROL_PORT, WRITE_STROBE, PAL_MODE_OUTPUT_PUSHPULL);
-      palSetPadMode(CONTROL_PORT, RD, PAL_MODE_OUTPUT_PUSHPULL);
+      palSetPadMode(CONTROL_PORT, WRITE_PIN, PAL_MODE_OUTPUT_PUSHPULL);
       palSetPadMode(CONTROL_PORT, CS, PAL_MODE_OUTPUT_PUSHPULL);
       palSetPadMode(CONTROL_PORT, RESET, PAL_MODE_OUTPUT_PUSHPULL);
 
       palClearPad(CONTROL_PORT, COMMAND_DATA);
-      palClearPad(CONTROL_PORT, WRITE_STROBE);
-      palSetPad(CONTROL_PORT, RD);
+      palClearPad(CONTROL_PORT, WRITE_PIN);
+      palSetPad(CONTROL_PORT, COMMAND_DATA);
       CHIP_ENABLE;
     }
 
@@ -84,15 +79,15 @@ class MyDisplay: public Display {
     }
 
     inline void write_strobe() {
-        palClearPad(CONTROL_PORT, WRITE_STROBE);
-        palSetPad(CONTROL_PORT, WRITE_STROBE);
+        palClearPad(CONTROL_PORT, WRITE_PIN);
+        palSetPad(CONTROL_PORT, WRITE_PIN);
     }
 
     void delay(uint16_t msec) {
       chThdSleepMilliseconds(msec);
     }
 
-    void printf(u16 x, u16 y, u16 size, u16 color, const char* fmt, ...) {
+    void printf(uint16_t x, uint16_t y, uint16_t size, uint16_t color, const char* fmt, ...) {
       char buf[100];
       va_list args;
       va_start(args, fmt);
@@ -109,16 +104,16 @@ template<int SIZE = 10, int FONTSIZE = 3>
 class StringWidget
 {
 private:
-  u16 x, y;
+  uint16_t x, y;
   char buffer[SIZE];
   size_t buffer_size = SIZE;
-  u8 fontsize = FONTSIZE;
+  uint8_t fontsize = FONTSIZE;
   Display* display;
   uint16_t bgcolor = BLACK;
   uint16_t fgcolor = WHITE;
 
 public:
-  inline StringWidget& position(u16 _x, u16 _y)
+  inline StringWidget& position(uint16_t _x, uint16_t _y)
   {
     x = _x;
     y = _y;
@@ -131,14 +126,14 @@ public:
     return *this;
   }
 
-  inline StringWidget& color(u16 fg, u16 bg)
+  inline StringWidget& color(uint16_t fg, uint16_t bg)
   {
     fgcolor = fg;
     bgcolor = bg;
     return *this;
   }
 
-  inline StringWidget& size(u8 _fontsize)
+  inline StringWidget& size(uint8_t _fontsize)
   {
     fontsize = _fontsize;
     return *this;
@@ -147,7 +142,6 @@ public:
   void print(const char* string)
   {
     // TODO: print only changed chars
-
     // erase old string
     display->print(buffer, x, y, fontsize, bgcolor);
     // print new string
@@ -157,21 +151,18 @@ public:
   }
 };
 
-class Pad
-{
+class Pad {
 public:
   ioportid_t port;
-  u32 pad;
+  uint32_t pad;
 
-  Pad(ioportid_t _port, u32 _pad)
+  Pad(ioportid_t _port, uint32_t _pad)
     : port(_port)
-    , pad(_pad)
-  {
+    , pad(_pad) {
     palSetPadMode(port, pad, PAL_MODE_OUTPUT_PUSHPULL);
   }
 
-  void toggle(u32 msec = 0)
-  {
+  void toggle(uint32_t msec=0) {
     palTogglePad(port, pad);
     delay(msec);
   }
@@ -191,108 +182,12 @@ public:
 };
 
 
-class QEI {
-public:
-  ioportid_t port;
-  u32 pad1;
-  u32 pad2;
-  u8 state = 0;
-  u16 count = 0; // TODO: overflow?
-  u16 value = 0;
-  u16 old_value = 0;
-
-  QEI(ioportid_t _port, u32 _pad1, u32 _pad2)
-    : port(_port)
-    , pad1(_pad1)
-    , pad2(_pad2)
-  {
-    palSetPadMode(port, pad1, PAL_MODE_INPUT_PULLUP);
-    palSetPadMode(port, pad2, PAL_MODE_INPUT_PULLUP);
-  }
-
-  int scan()
-  {
-    // idea from
-    // https://www.eevblog.com/forum/projects/quadrature-rotary-encoder/msg1291497/#msg1291497
-
-    bool pad1_state = palReadPad(port, pad1);
-    bool pad2_state = palReadPad(port, pad2);
-
-    state = (state << 2) & 0b1111;
-    if (pad1_state) {
-      state |= 0b01;
-    }
-    if (pad2_state) {
-      state |= 0b10;
-    }
-
-    switch (state) {
-      // Forward
-      case 0b0010:
-      case 0b1011:
-      case 0b1101:
-      case 0b0100:
-        count++;
-        break;
-
-        // Reverse
-      case 0b0001:
-      case 0b0111:
-      case 0b1110:
-      case 0b1000:
-        count--;
-        break;
-    }
-
-    if (count % 4 == 0) {
-      value = count / 4;
-    }
-
-    return value;
-  }
-
-  int scan_relative()
-  {
-    int result = 0;
-    int new_value = scan();
-    if (new_value == old_value) {
-      result = 0;
-    } else if (new_value > old_value) {
-      result = 1;
-    } else {
-      result = -1;
-    }
-    old_value = new_value;
-    return result;
-  }
-};
 
 Pad led = Pad(LED_PORT, LED_PAD);
 
-#define STATIC_MAILBOX(name, len)  \
-  static msg_t  name ## _buffer [len];  \
-  static MAILBOX_DECL(name, name ## _buffer, len);
-
-STATIC_MAILBOX(input, INPUT_QUEUE_SIZE);
+STATIC_MAILBOX(input_mbox, INPUT_QUEUE_SIZE);
+//extern mailbox_t input_mbox;
 STATIC_MAILBOX(readback, READBACK_QUEUE_SIZE);
-
-
-// encoder1: GPIOC 13 14
-QEI encoder = QEI(GPIOC, 13, 14);
-static THD_WORKING_AREA(waInput, 128);
-static __attribute__((noreturn)) THD_FUNCTION(Input, arg) {
-  (void) arg;
-  chRegSetThreadName("input");
-  int value = 0;
-  while (1) {
-    value = encoder.scan_relative();
-
-    if (value != 0) {
-      chMBPostI(&input, value);
-    }
-    delay(1);
-  }
-}
 
 /*
 ADC
@@ -315,7 +210,7 @@ static const ADCConversionGroup adcgrpcfg1 = {
   ADC_SQR3_SQ1_N(ADC_CHANNEL_SENSOR)        // SQR3
 };
 
-static THD_WORKING_AREA(waReadbackThread, 128);
+//static THD_WORKING_AREA(waReadbackThread, 128);
 static __attribute__((noreturn)) THD_FUNCTION(ReadbackThread, arg) {
   (void) arg;
   chRegSetThreadName("readback");
@@ -332,8 +227,7 @@ static __attribute__((noreturn)) THD_FUNCTION(ReadbackThread, arg) {
 
 #define offset(idx, size) ((size * 8 + 4) * idx)
 
-class Channel
-{
+class Channel {
 public:
   StringWidget<6, 3> vread;
   StringWidget<6, 3> iread;
@@ -341,8 +235,7 @@ public:
   StringWidget<6, 3> vset;
   StringWidget<6, 3> iset;
 
-  Channel(Display* display, u16 horiz_offset, u8 size = 3)
-  {
+  Channel(Display* display, uint16_t horiz_offset, uint8_t size = 3) {
     int vert_offset = 6;
     int gap = 8;
     int vert_step = size * 8 + gap;
@@ -368,8 +261,7 @@ public:
     iset.position(horiz_offset, vert_offset).color(RED, BLACK).disp(display);
   }
 
-  void update()
-  {
+  void update() {
     vread.print("3.341V");
     iread.print("0.001A");
     vset.print("3.34V");
@@ -404,16 +296,16 @@ static __attribute__((noreturn)) THD_FUNCTION(DisplayThread, arg)
 
   while (1) {
     msg_t msg;
-    if (chMBFetchTimeout(&input, &msg, 1000) == MSG_OK) {
+    if (chMBFetchTimeout(&input_mbox, &msg, 1000) == MSG_OK) {
       //        chsnprintf(printf_buf, sizeof(printf_buf), "%d", msg);
       //        encoder_widget.print(printf_buf);
-      led.
 
-        toggle();
     }
 
+    led.toggle();
+
     if (chMBFetchI(&readback_mbox, &msg) == MSG_OK) {
-      u16 raw_val = msg;
+      uint16_t raw_val = msg;
       double adc_res = 3.3 / 4096;
       double Vcur = raw_val * adc_res;
       double V25 = 1.3565;
@@ -462,8 +354,8 @@ main(void)
 
   shellInit();
 
-  chThdCreateStatic(waReadbackThread, sizeof(waReadbackThread), NORMALPRIO, ReadbackThread, NULL);
-  chThdCreateStatic(waInput, sizeof(waInput), NORMALPRIO, Input, NULL);
+//  chThdCreateStatic(waReadbackThread, sizeof(waReadbackThread), NORMALPRIO, ReadbackThread, NULL);
+//  chThdCreateStatic(waInput, sizeof(waInput), NORMALPRIO, InputThread, NULL);
   chThdCreateStatic(waDisplayThread, sizeof(waDisplayThread), NORMALPRIO, DisplayThread, NULL);
 
   while (true) {

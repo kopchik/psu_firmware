@@ -19,17 +19,13 @@
 #define ORANGE 0xFD20
 #define MAROON 0x7800
 
-typedef uint32_t u32;
-typedef uint16_t u16;
-typedef uint8_t u8;
-
 
 class Display {
 public:
     uint16_t width = 0;
     uint16_t height = 0;
-    u16 max_x = 0;
-    u16 max_y = 0;
+    uint16_t max_x = 0;
+    uint16_t max_y = 0;
 
     void init(void);
     void SetAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
@@ -41,10 +37,10 @@ public:
                    uint16_t w,
                    uint16_t h,
                    uint16_t color = WHITE);
-    void hline(u16 x, u16 y, u16 w, u16 color = WHITE);
-    void vline(u16 x, u16 y, u16 h, u16 color = WHITE);
-    void border(u16 color = WHITE);
-    void print(const char* str, u16 x, u16 y, u16 size = 4, u16 color = WHITE);
+    void hline(uint16_t x, uint16_t y, uint16_t w, uint16_t color = WHITE);
+    void vline(uint16_t x, uint16_t y, uint16_t h, uint16_t color = WHITE);
+    void border(uint16_t color = WHITE);
+    void print(const char* str, uint16_t x, uint16_t y, uint16_t size = 4, uint16_t color = WHITE);
     void draw_char(unsigned char ascii,
                    uint16_t x,
                    uint16_t y,
@@ -59,5 +55,3 @@ public:
     virtual void writedata(uint16_t data) = 0;
     virtual void delay(uint16_t msec) = 0;
 };
-
-//#endif

@@ -2,14 +2,13 @@
 
 #define INPUT_QUEUE_SIZE 4
 #define READBACK_QUEUE_SIZE 4
-
+#define SHELL_WA_SIZE THD_WORKING_AREA_SIZE(2048)
 
 #define CONTROL_PORT GPIOA
 #define COMMAND_DATA 15 // DC / RS
-#define WRITE_STROBE 8  // WR  CHECK
-#define RD 15           // read data, active low
+#define WRITE_PIN 8     // WRITE
 #define CS 10           // chip select, active low
-#define RESET 9
+#define RESET_PAD 9
 
 #define LED_PORT GPIOB
 #define LED_PAD 1
