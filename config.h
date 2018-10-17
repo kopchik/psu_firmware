@@ -7,7 +7,7 @@
 #define CONTROL_PORT GPIOA
 #define COMMAND_DATA 15 // DC / RS
 #define WRITE_PIN 8     // WRITE
-#define CS 10           // chip select, active low
+#define CHIP_SELECT_PIN 10           // chip select, active low
 #define RESET_PAD 9
 
 #define LED_PORT GPIOB

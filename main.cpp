@@ -25,8 +25,6 @@ DB9 not connected
 IOBus busA = { GPIOA, 0xFF, 0 };
 IOBus busB = { GPIOB, 0xFF, 0 };
 
-#define CHIP_ENABLE palClearPad(CONTROL_PORT, CS)
-#define CHIP_DISABLE palSetPad(CONTROL_PORT, CS)
 #define SEND_COMMAND palClearPad(CONTROL_PORT, COMMAND_DATA);
 #define SEND_DATA palSetPad(CONTROL_PORT, COMMAND_DATA);
 
@@ -43,19 +41,23 @@ class MyDisplay: public Display {
       delay(200);
     }
 
-    void bus_init(void) {
+    void chip_enable() {
+      palClearPad(CONTROL_PORT, CHIP_SELECT_PIN);
+    }
+
+    void bus_init() {
       palSetBusMode(&busA, PAL_MODE_OUTPUT_PUSHPULL);
       palSetBusMode(&busB, PAL_MODE_OUTPUT_PUSHPULL);
 
       palSetPadMode(CONTROL_PORT, COMMAND_DATA, PAL_MODE_OUTPUT_PUSHPULL);
       palSetPadMode(CONTROL_PORT, WRITE_PIN, PAL_MODE_OUTPUT_PUSHPULL);
-      palSetPadMode(CONTROL_PORT, CS, PAL_MODE_OUTPUT_PUSHPULL);
+      palSetPadMode(CONTROL_PORT, CHIP_SELECT_PIN, PAL_MODE_OUTPUT_PUSHPULL);
       palSetPadMode(CONTROL_PORT, RESET_PAD, PAL_MODE_OUTPUT_PUSHPULL);
 
       palClearPad(CONTROL_PORT, COMMAND_DATA);
       palClearPad(CONTROL_PORT, WRITE_PIN);
       palSetPad(CONTROL_PORT, COMMAND_DATA);
-      CHIP_ENABLE;
+      chip_enable();
     }
 
     void write_bus(uint16_t data) {
